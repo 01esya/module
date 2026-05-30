@@ -1,101 +1,241 @@
-# CargoFlow FastAPI Backend
+# CargoFlow Backend API
 
-FastAPI is the backend-for-frontend for the React UI. Supabase Auth is the single authorization source, and `F:\legacy\waybill-module_1\api.http` is the Supabase HTTP API contract.
+**Backend модуль формирования электронных путевых листов с интеграцией со спутниковой системой мониторинга транспорта**
 
-## How Auth Works
+[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com)
+[![Supabase](https://img.shields.io/badge/Supabase-Self--Hosted-3ecf8e.svg)](https://supabase.com)
 
-- React sends `email/password` to `POST /api/auth/login`.
-- FastAPI calls Supabase HTTP directly with `httpx`: `POST /auth/v1/token?grant_type=password`.
-- FastAPI stores `access_token` and `refresh_token` in HttpOnly cookies: `sb_access_token`, `sb_refresh_token`.
-- React receives only a user DTO plus a non-secret compatibility marker.
-- Protected FastAPI endpoints call `GET /auth/v1/user` with `Authorization: Bearer <user access token>`.
-- Supabase REST/RPC requests always use `apikey` and `Authorization: Bearer <user access token>`, so RLS applies in Supabase.
+---
 
-```mermaid
-sequenceDiagram
-    actor User as Пользователь
-    participant React as React UI
-    participant FastAPI as FastAPI BFF
-    participant Supabase as Supabase HTTP API
+## Архитектура
 
-    User->>React: Вводит email/password
-    React->>FastAPI: POST /api/auth/login
-    FastAPI->>Supabase: POST /auth/v1/token?grant_type=password
-    Supabase-->>FastAPI: access_token, refresh_token, user
-    FastAPI-->>React: Set-Cookie HttpOnly + user DTO
-
-    React->>FastAPI: GET /api/monitoring/vehicles
-    FastAPI->>FastAPI: get_current_user из cookies
-    FastAPI->>Supabase: GET /auth/v1/user
-    Supabase-->>FastAPI: user
-    FastAPI->>Supabase: GET /rest/v1/vehicles?select=*&order=id.asc
-    Supabase-->>FastAPI: vehicles, RLS applied
-    FastAPI-->>React: vehicles JSON
+```
+┌─────────────────────────────────────────────────────────┐
+│                 Frontend (React / TS)                   │
+│                    :5173 / :3000                        │
+└────────────────────────┬────────────────────────────────┘
+                         │ HTTP + HttpOnly Cookie
+                         ▼
+┌─────────────────────────────────────────────────────────┐
+│              FastAPI Backend  :8000                     │
+│                                                         │
+│  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌─────────┐  │
+│  │ /auth    │ │ /waybills │ │/employees│ │  /ai    │  │
+│  └──────────┘ └───────────┘ └──────────┘ └─────────┘  │
+│  ┌────────────────────┐  ┌──────────────────────────┐  │
+│  │ /monitoring        │  │ SlowAPI + CORS Middleware │  │
+│  └────────────────────┘  └──────────────────────────┘  │
+└────────────┬────────────────────────┬───────────────────┘
+             │ PostgREST API          │ Gemini API
+             ▼                        ▼
+┌────────────────────┐    ┌──────────────────────┐
+│  Supabase          │    │  Google Gemini        │
+│  Self-Hosted       │    │  gemini-2.5-flash     │
+│  PostgreSQL 15     │    └──────────────────────┘
+│  GoTrue Auth       │
+│  PostgREST         │
+└────────────────────┘
 ```
 
-```mermaid
-flowchart TD
-    A[React UI] --> B[FastAPI auth endpoints]
-    B --> C[Supabase Auth HTTP API]
-    A --> D[FastAPI monitoring endpoints]
-    D --> E[get_current_user]
-    E --> F[Supabase /auth/v1/user]
-    D --> G[Supabase /rest/v1 and /rpc endpoints]
-    G --> H[RLS applies by user JWT]
-    H --> A
-```
+---
 
-## Run
+## Быстрый старт
+
+### 1. Требования
+
+- Python 3.12+
+- pip
+
+### 2. Установка
 
 ```powershell
-cd F:\cargoflow\backend
-python -m pip install -r requirements.txt
-copy .env.example .env
-python -m uvicorn app.main:app --reload --port 8000
+# Создать виртуальное окружение
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+
+# Установить зависимости
+pip install -r requirements.txt
 ```
 
-Required env:
+### 3. Настройка `.env`
+
+Файл `backend/.env` уже создан. Убедитесь, что ключи корректны:
 
 ```env
 SUPABASE_URL=https://194-67-127-185.cloudvps.regruhosting.ru
-SUPABASE_ANON_KEY=replace_me
+SUPABASE_ANON_KEY=<anon key из Supabase Dashboard>
+GEMINI_API_KEY=<ваш ключ Gemini>
+APP_ENV=development
+BACKEND_PORT=8000
 FRONTEND_ORIGIN=http://localhost:5173,http://localhost:3000
-COOKIE_SECURE=false
-COOKIE_SAMESITE=lax
+RATE_LIMIT_REQUESTS=60
 ```
 
-## Manual Checks
+### 4. Миграция базы данных
+
+Перед первым запуском выполните SQL-миграцию:
+
+**Способ 1 — Browser Agent** (рекомендуется):
+1. Откройте `backend/migration_agent.html` в браузере
+2. Вставьте service_role key из Supabase Studio → API Settings
+3. Нажмите «Выполнить миграцию»
+
+**Способ 2 — Supabase SQL Editor**:
+1. Откройте Supabase Studio → Database → SQL Editor
+2. Скопируйте содержимое `backend/migrations/001_create_employees_and_waybills.sql`
+3. Нажмите Run (Ctrl+Enter)
+
+### 5. Запуск
 
 ```powershell
-# login, cookies are written to cookies.txt
-curl.exe -c cookies.txt -b cookies.txt -H "Content-Type: application/json" `
-  -d "{\"email\":\"test@ends.ru\",\"password\":\"fdp-swf-AdZ-RB7\"}" `
-  http://127.0.0.1:8000/api/auth/login
-
-curl.exe -c cookies.txt -b cookies.txt http://127.0.0.1:8000/api/auth/me
-curl.exe -c cookies.txt -b cookies.txt http://127.0.0.1:8000/api/monitoring/vehicles
-
-curl.exe -c cookies.txt -b cookies.txt -H "Content-Type: application/json" `
-  -d "{\"vehicle_id\":4,\"from\":\"2026-03-18T00:00:00Z\",\"to\":\"2026-03-25T00:00:00Z\",\"limit\":5,\"offset\":0}" `
-  http://127.0.0.1:8000/api/monitoring/records
-
-curl.exe -c cookies.txt -b cookies.txt -X POST http://127.0.0.1:8000/api/auth/logout
-curl.exe -c cookies.txt -b cookies.txt http://127.0.0.1:8000/api/auth/me
+# Из папки backend
+uvicorn app.main:app --reload --port 8000
 ```
 
-## Implemented Supabase Contract
+Swagger UI: **http://localhost:8000/docs**
 
-- `POST /auth/v1/token?grant_type=password`
-- `POST /auth/v1/token?grant_type=refresh_token`
-- `GET /auth/v1/user`
-- `GET /rest/v1/device_types?select=*`
-- `GET /rest/v1/parameters?select=*&order=code.asc`
-- `GET /rest/v1/organizations?select=*`
-- `GET /rest/v1/profiles`
-- `GET /rest/v1/vehicles?select=*&order=id.asc`
-- `GET /rest/v1/vehicles?select=*&id=eq.{vehicle_id}`
-- `GET /rest/v1/vehicles?select=*&active=eq.true&order=id.asc`
-- `GET /rest/v1/navigation_devices?select=*&order=id.asc`
-- `GET /rest/v1/vehicle_devices?...`
-- `GET /rest/v1/user_vehicles?...`
-- `POST /rest/v1/rpc/get_monitoring_records`
+### 6. Запуск тестов
+
+```powershell
+# Из папки backend
+py -m pytest tests/ -v
+```
+
+---
+
+## API Reference
+
+### Аутентификация
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| `POST` | `/api/auth/login` | Вход (rate limit: 10/мин) |
+| `POST` | `/api/auth/logout` | Выход, удаление cookie |
+| `GET`  | `/api/auth/me` | Профиль текущего пользователя |
+
+**Аутентификация**: JWT Bearer token или HttpOnly cookie `sb_access_token`
+
+### Путевые листы
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| `GET`    | `/api/waybills` | Список путевых листов (фильтр: `?status=В пути`) |
+| `GET`    | `/api/waybills/{id}` | Путевой лист по ID |
+| `POST`   | `/api/waybills` | Создать путевой лист |
+| `PATCH`  | `/api/waybills/{id}` | Обновить путевой лист |
+| `PATCH`  | `/api/waybills/{id}/status` | Изменить статус |
+| `DELETE` | `/api/waybills/{id}` | Удалить путевой лист |
+
+**Статусы**: `Ожидают` → `В пути` → `Доставлен` / `Отменён`
+
+### Сотрудники
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| `GET`    | `/api/employees` | Список активных сотрудников |
+| `GET`    | `/api/employees/{id}` | Сотрудник по ID |
+| `POST`   | `/api/employees` | Создать сотрудника |
+| `PATCH`  | `/api/employees/{id}` | Обновить данные |
+| `DELETE` | `/api/employees/{id}` | Деактивировать (мягкое удаление) |
+
+### Мониторинг (телеметрия)
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| `GET`  | `/api/monitoring/vehicles` | Список ТС |
+| `GET`  | `/api/monitoring/vehicles/{id}/location` | Текущая позиция GPS/ГЛОНАСС |
+| `GET`  | `/api/monitoring/vehicles/{id}/parameters` | Параметры CAN-шины |
+| `GET`  | `/api/monitoring/vehicles/{id}/history` | История телеметрии (30 мин) |
+| `POST` | `/api/monitoring/records` | История из Supabase RPC |
+| `GET`  | `/api/monitoring/organizations` | Организации |
+| `GET`  | `/api/monitoring/navigation-devices` | Навигационные устройства |
+
+### ИИ-аналитика
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| `POST` | `/api/ai/analyze` | Gemini-аудит рейса по путевому листу |
+
+### Служебные
+
+| Метод | Endpoint | Описание |
+|-------|----------|----------|
+| `GET` | `/health` | Health check |
+| `GET` | `/docs` | Swagger UI |
+| `GET` | `/redoc` | ReDoc |
+
+---
+
+## Безопасность
+
+| Механизм | Реализация |
+|----------|-----------|
+| Аутентификация | Supabase JWT (HS256), проверка через `/auth/v1/user` |
+| Сессия | HttpOnly cookie `sb_access_token`, SameSite=Lax |
+| Авторизация данных | Row Level Security (RLS) на уровне PostgreSQL |
+| Пароли | bcrypt, cost factor 12 (`security.py`) |
+| Rate Limiting | SlowAPI: 60 req/min по IP, 10/min на `/login` |
+| CORS | Whitelist из `FRONTEND_ORIGIN` env var (не wildcard) |
+| Секреты | Только через `.env`, нет хардкода в коде |
+
+---
+
+## Структура проекта
+
+```
+backend/
+├── app/
+│   ├── api/              # API-роутеры (по модулям)
+│   │   ├── auth.py       # Аутентификация
+│   │   ├── waybills.py   # Путевые листы
+│   │   ├── employees.py  # Сотрудники
+│   │   ├── monitoring.py # Телеметрия и мониторинг
+│   │   ├── ai.py         # Gemini AI-аналитика
+│   │   ├── vehicles.py   # Транспортные средства
+│   │   └── health.py     # Health check
+│   ├── core/
+│   │   ├── config.py     # Pydantic Settings (env vars)
+│   │   └── security.py   # bcrypt + SlowAPI limiter
+│   ├── services/
+│   │   ├── supabase_service.py    # Repository: PostgREST API
+│   │   └── telemetry_simulator.py # GPS/ГЛОНАСС имитационная модель
+│   └── main.py           # FastAPI app + middleware
+├── migrations/
+│   └── 001_create_employees_and_waybills.sql
+├── tests/
+│   ├── conftest.py       # pytest fixtures
+│   ├── test_auth.py      # 8 тестов авторизации
+│   ├── test_waybills.py  # 9 тестов путевых листов
+│   └── test_monitoring.py # 10 тестов телеметрии
+├── .env                  # Секреты (не в git)
+├── .env.example          # Шаблон без секретов
+├── Dockerfile            # Multi-stage production build
+├── requirements.txt
+└── pytest.ini
+```
+
+---
+
+## Телеметрическая модель (Wialon IPS)
+
+Модуль `telemetry_simulator.py` реализует генератор навигационных пакетов, совместимый с протоколом **Wialon IPS 2.0**, применяемым в спутниковых системах мониторинга транспорта класса ГЛОНАСС/GPS.
+
+Алгоритм интерполяции позиции использует **формулу Хаверсина** для вычисления расстояний на сфере (WGS-84). Профиль скорости строится по синусоидальной модели, расход топлива — пропорционально скорости (0.35% ДУТ на км).
+
+Пример навигационного пакета:
+
+```json
+{
+  "vehicle_id": 4,
+  "state_number": "А123БВ777",
+  "timestamp": "2026-05-30T20:00:00Z",
+  "latitude": 55.8124,
+  "longitude": 38.4217,
+  "heading": 73.2,
+  "speed": 68.4,
+  "gps_satellites": 11,
+  "engine_on": true,
+  "fuel_level": 71.3
+}
+```

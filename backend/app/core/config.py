@@ -1,29 +1,49 @@
+"""
+Конфигурация серверного приложения CargoFlow.
+
+Все чувствительные параметры загружаются исключительно из переменных
+окружения (.env). Хардкод секретов в исходном коде недопустим.
+"""
+
 import os
+from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    app_name: str = "CargoFlow FastAPI"
+    app_name: str = "CargoFlow Backend"
     app_env: str = "development"
     backend_port: int = 8000
-    supabase_url: str = "https://194-67-127-185.cloudvps.regruhosting.ru"
-    supabase_anon_key: str = (
-        "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9."
-        "eyJyb2xlIjoiYW5vbiIsImlzcyI6InN1cGFiYXNlIiwiaWF0IjoxNzc0MjkwNTkwLCJleHAiOjE5MzE5NzA1OTB9."
-        "I5pEgsEt60x6j0TLrJQDTYN9WyAVDWpnLJvReL_ezQQ"
-    )
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Supabase — обязательные параметры, без дефолтных значений
+    supabase_url: str
+    supabase_anon_key: str
+
+    # Gemini AI
+    gemini_api_key: str = ""
+
+    # Rate limiting
+    rate_limit_requests: int = 60
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     @property
     def frontend_origins(self) -> list[str]:
-        raw_origins = os.getenv("FRONTEND_ORIGIN", "http://localhost:5173,http://localhost:3000")
-        return [origin.strip() for origin in raw_origins.split(",") if origin.strip()]
+        raw = os.getenv(
+            "FRONTEND_ORIGIN",
+            "http://localhost:5173,http://localhost:3000",
+        )
+        return [o.strip() for o in raw.split(",") if o.strip()]
 
 
-settings = Settings()
+@lru_cache
+def get_settings() -> Settings:
+    return Settings()
 
 
-def env_or_default(name: str, default: str) -> str:
-    return os.getenv(name, default)
+settings = get_settings()
