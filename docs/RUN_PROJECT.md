@@ -1,250 +1,168 @@
 # Как запустить проект CargoFlow
 
-Инструкция рассчитана на запуск из Windows PowerShell.
+Инструкция для Windows PowerShell. Проект находится в `c:\Users\User\cargo\module`.
 
-## 1. Что нужно запустить
+---
 
-Проект состоит из двух процессов:
-
-- backend на FastAPI: `http://127.0.0.1:8000`
-- frontend + Node/Express сервер: `http://localhost:3000`
-
-Открывать в браузере нужно frontend:
-
-```text
-http://localhost:3000
-```
-
-## 2. Виртуальное окружение Python
-
-В проекте уже есть виртуальное окружение:
-
-```text
-F:\cargoflow\.venv
-```
-
-Создавать второе окружение в `backend\.venv` не нужно. Это было бы технически нормально, но для этого проекта лишнее и может путать.
-
-Backend можно запускать из папки `backend`, но активировать нужно корневое окружение:
+## Быстрый старт (одна команда)
 
 ```powershell
-cd F:\cargoflow
-.\.venv\Scripts\Activate.ps1
+Set-ExecutionPolicy Bypass -Scope Process
+c:\Users\User\cargo\module\backend\run_server.ps1
 ```
 
-Если PowerShell ругается на запуск скриптов, выполните:
+Скрипт автоматически:
+1. Создаёт виртуальное окружение `.venv` (если нет)
+2. Устанавливает зависимости из `requirements.txt`
+3. Запускает FastAPI на `:8000`
+
+---
+
+## Что запустить
+
+| Сервис | Адрес | Команда |
+|--------|-------|---------|
+| **FastAPI Backend** | `http://localhost:8000` | `run_server.ps1` |
+| **Swagger UI** | `http://localhost:8000/docs` | — |
+| **Frontend (Node/Vite)** | `http://localhost:3000` | `npm run dev` |
+
+---
+
+## 1. Backend (FastAPI)
+
+### Виртуальное окружение
 
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
+# Создать (только первый раз)
+py -m venv c:\Users\User\cargo\module\.venv
+
+# Активировать
+c:\Users\User\cargo\module\.venv\Scripts\Activate.ps1
 ```
 
-После активации в начале строки терминала должно появиться `(.venv)`.
-
-## 3. Подготовка backend
-
-Перейдите в папку backend:
+Если PowerShell блокирует скрипты:
 
 ```powershell
-cd F:\cargoflow\backend
+Set-ExecutionPolicy Bypass -Scope Process
+c:\Users\User\cargo\module\.venv\Scripts\Activate.ps1
 ```
 
-Если файл `backend\.env` еще не создан, создайте его из примера:
+### Установка зависимостей
 
 ```powershell
-copy .env.example .env
+pip install -r c:\Users\User\cargo\module\backend\requirements.txt
 ```
 
-Проверьте переменные в `backend\.env`:
+### Запуск сервера
+
+```powershell
+# Перейти в папку backend
+cd c:\Users\User\cargo\module\backend
+
+# Запустить с hot-reload
+uvicorn app.main:app --reload --port 8000
+```
+
+Проверка:
+```powershell
+curl.exe http://localhost:8000/health
+# {"status":"ok","service":"CargoFlow Backend","version":"1.0.0"}
+```
+
+### Запуск тестов
+
+```powershell
+cd c:\Users\User\cargo\module\backend
+py -m pytest tests/ -v
+# Ожидается: 18 passed (27 после SQL-миграции)
+```
+
+---
+
+## 2. SQL-миграция базы данных
+
+**Способ 1 — Browser Agent** (не нужны пароли от postgres):
+
+```
+Открыть: c:\Users\User\cargo\module\backend\migration_agent.html
+→ Вставить service_role key из Supabase Studio → API Settings
+→ Нажать "Выполнить миграцию"
+```
+
+**Способ 2 — Supabase SQL Editor**:
+
+```
+1. Открыть: https://194-67-127-185.cloudvps.regruhosting.ru
+2. Database → SQL Editor
+3. Открыть файл: backend\migrations\001_create_employees_and_waybills.sql
+4. Вставить содержимое → Run (Ctrl+Enter)
+```
+
+---
+
+## 3. Frontend (Node.js / Vite)
+
+```powershell
+# Установить зависимости (один раз)
+cd c:\Users\User\cargo\module
+npm install
+
+# Запустить dev-сервер
+npm run dev
+```
+
+Браузер: `http://localhost:3000`
+
+---
+
+## 4. Переменные окружения
+
+**`backend/.env`** — уже заполнен. Проверьте:
 
 ```env
 SUPABASE_URL=https://194-67-127-185.cloudvps.regruhosting.ru
-SUPABASE_ANON_KEY=replace_me
-FRONTEND_ORIGIN=http://localhost:5173,http://localhost:3000
-COOKIE_SECURE=false
-COOKIE_SAMESITE=lax
+SUPABASE_ANON_KEY=eyJhbGci...
+GEMINI_API_KEY=your_key_here   ← вставьте ваш ключ
+APP_ENV=development
 BACKEND_PORT=8000
+FRONTEND_ORIGIN=http://localhost:5173,http://localhost:3000
 ```
 
-Вместо `replace_me` нужен актуальный `SUPABASE_ANON_KEY`.
+---
 
-Если зависимости backend еще не установлены или есть ошибка импорта, установите их в корневое `.venv`:
+## 5. Порядок запуска
 
+**Терминал 1 — Backend:**
 ```powershell
-cd F:\cargoflow
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r backend\requirements.txt
+Set-ExecutionPolicy Bypass -Scope Process
+c:\Users\User\cargo\module\backend\run_server.ps1
 ```
 
-## 4. Запуск backend
-
-В отдельном терминале PowerShell:
-
+**Терминал 2 — Frontend:**
 ```powershell
-cd F:\cargoflow
-.\.venv\Scripts\Activate.ps1
-cd backend
-python -m uvicorn app.main:app --reload --port 8000
-```
-
-Проверка, что backend поднялся:
-
-```powershell
-curl.exe http://127.0.0.1:8000/health
-```
-
-Ожидаемый ответ:
-
-```json
-{"status":"ok","service":"CargoFlow FastAPI"}
-```
-
-Этот терминал нужно оставить открытым.
-
-## 5. Подготовка frontend/Node-части
-
-Откройте второй терминал PowerShell и перейдите в корень проекта:
-
-```powershell
-cd F:\cargoflow
-```
-
-Установите Node-зависимости:
-
-```powershell
-npm install
-```
-
-Если файл `.env` в корне проекта еще не создан, создайте его:
-
-```powershell
-copy .env.example .env
-```
-
-Проверьте переменные в корневом `.env`:
-
-```env
-GEMINI_API_KEY="MY_GEMINI_API_KEY"
-APP_URL="http://localhost:3000"
-FASTAPI_BASE_URL="http://127.0.0.1:8000"
-```
-
-`GEMINI_API_KEY` нужен только для функций ИИ. Без него основное приложение может запускаться, но ИИ-анализ будет недоступен.
-
-## 6. Запуск frontend
-
-Во втором терминале из корня проекта:
-
-```powershell
-cd F:\cargoflow
+cd c:\Users\User\cargo\module
 npm run dev
 ```
 
-После запуска откройте:
+**Браузер:** `http://localhost:3000`
 
-```text
-http://localhost:3000
-```
+---
 
-Этот терминал тоже нужно оставить открытым.
+## 6. Частые проблемы
 
-## 7. Коротко: порядок запуска
-
-Первый терминал:
-
+### Порт занят
 ```powershell
-cd F:\cargoflow
-.\.venv\Scripts\Activate.ps1
-cd backend
-python -m uvicorn app.main:app --reload --port 8000
-```
-
-Второй терминал:
-
-```powershell
-cd F:\cargoflow
-npm run dev
-```
-
-Браузер:
-
-```text
-http://localhost:3000
-```
-
-## 8. Production-сборка
-
-Из корня проекта:
-
-```powershell
-npm run build
-```
-
-Запуск собранной версии:
-
-```powershell
-npm start
-```
-
-Собранное приложение слушает порт `3000`.
-
-## 9. Проверка типов
-
-Из корня проекта:
-
-```powershell
-npm run lint
-```
-
-Скрипт запускает TypeScript-проверку без сборки:
-
-```powershell
-tsc --noEmit
-```
-
-## 10. Частые проблемы
-
-### Порт уже занят
-
-Проверьте, что слушает порт:
-
-```powershell
-netstat -ano | findstr :3000
 netstat -ano | findstr :8000
-```
-
-Завершите лишний процесс через PID:
-
-```powershell
 taskkill /PID <PID> /F
 ```
 
-### Не работает авторизация или мониторинг
-
-Проверьте:
-
-- FastAPI запущен на `http://127.0.0.1:8000`
-- frontend/Node-сервер запущен на `http://localhost:3000`
-- в `backend\.env` указан актуальный `SUPABASE_ANON_KEY`
-- в корневом `.env` указан `FASTAPI_BASE_URL="http://127.0.0.1:8000"`
-
-### PowerShell не активирует `.venv`
-
-Выполните:
-
+### ImportError при запуске
 ```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-.\.venv\Scripts\Activate.ps1
+pip install -r c:\Users\User\cargo\module\backend\requirements.txt
 ```
 
-### Backend падает при старте
+### Тесты падают с ошибкой "waybills not found"
+Нужно выполнить SQL-миграцию (см. раздел 2).
 
-Переустановите зависимости backend в корневое окружение:
-
-```powershell
-cd F:\cargoflow
-.\.venv\Scripts\Activate.ps1
-python -m pip install -r backend\requirements.txt
-cd backend
-python -m uvicorn app.main:app --reload --port 8000
-```
+### Backend не видит переменные окружения
+Убедитесь, что `backend/.env` существует и содержит `SUPABASE_URL` и `SUPABASE_ANON_KEY`.

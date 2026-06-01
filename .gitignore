@@ -1,8 +1,44 @@
+# ─── Node.js / Frontend ───────────────────────────────────────
 node_modules/
 build/
 dist/
 coverage/
 .DS_Store
 *.log
-.env*
+
+# ─── Secrets — НИКОГДА не коммитить ─────────────────────────
+.env
+.env.*
 !.env.example
+backend/.env
+backend/.env.*
+!backend/.env.example
+*.pem
+*.key
+cookies.txt
+
+# ─── Python ───────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+*.egg-info/
+
+# ─── Testing ──────────────────────────────────────────────────
+.pytest_cache/
+htmlcov/
+.coverage
+*.coverage
+
+# ─── IDE ──────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# ─── Dev tools ────────────────────────────────────────────────
+backend/run_migration.ps1
+backend/migration_agent.html
+data_store.json

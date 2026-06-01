@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Vehicle, CargoLoad, LiveLocation, User, Employee } from "./types";
+import { Vehicle, Waybill, LiveLocation, User, Employee } from "./types";
 import MapControl from "./components/MapControl";
 import AnalyticsPanel from "./components/AnalyticsPanel";
 import CargoForm from "./components/CargoForm";
@@ -11,11 +11,16 @@ import {
   Printer
 } from "lucide-react";
 
-const IN_TRANSIT_STATUS = "В пути";
-const DELIVERED_STATUS = "Доставлен";
+const IN_TRANSIT_STATUS = "active";
+const DELIVERED_STATUS = "completed";
 
-const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) =>
-  fetch(input, { credentials: "include", ...init });
+const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  let url = input;
+  if (typeof input === "string" && input.startsWith("/api")) {
+    url = `http://localhost:8000${input}`;
+  }
+  return fetch(url, { credentials: "include", ...init });
+};
 
 function sameVehicleId(left: number | string | null | undefined, right: number | string | null | undefined) {
   if (left === null || left === undefined || right === null || right === undefined) return false;
@@ -26,7 +31,7 @@ function findVehicleById(vehicles: Vehicle[], vehicleId: number | string | null 
   return vehicles.find((vehicle) => sameVehicleId(vehicle.id, vehicleId));
 }
 
-function hasValidActiveVehicle(cargo: CargoLoad, vehicles: Vehicle[]) {
+function hasValidActiveVehicle(cargo: Waybill, vehicles: Vehicle[]) {
   return cargo.status === IN_TRANSIT_STATUS && Boolean(findVehicleById(vehicles, cargo.vehicle_id));
 }
 
@@ -52,7 +57,7 @@ export default function App() {
 
   // Core application lists from fullstack endpoints
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [cargoLoads, setCargoLoads] = useState<CargoLoad[]>([]);
+  const [waybills, setWaybills] = useState<Waybill[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<number, LiveLocation>>({});
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -68,12 +73,12 @@ export default function App() {
   // Interaction handlers
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingCargo, setEditingCargo] = useState<CargoLoad | null>(null);
-  const [printWaybillCargo, setPrintWaybillCargo] = useState<CargoLoad | null>(null);
+  const [editingWaybill, setEditingWaybill] = useState<Waybill | null>(null);
+  const [printWaybillTarget, setPrintWaybillTarget] = useState<Waybill | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const validActiveCargoLoads = useMemo(
-    () => cargoLoads.filter((cargo) => hasValidActiveVehicle(cargo, vehicles)),
-    [cargoLoads, vehicles]
+  const validActiveWaybills = useMemo(
+    () => waybills.filter((cargo) => hasValidActiveVehicle(cargo, vehicles)),
+    [waybills, vehicles]
   );
 
   // Simulated live clocks
@@ -127,10 +132,10 @@ export default function App() {
         }
 
         const [cargRes, empRes] = await Promise.all([
-          apiFetch("/api/loads"),
+          apiFetch("/api/waybills"),
           apiFetch("/api/employees")
         ]);
-        if (cargRes.ok) setCargoLoads(await cargRes.json());
+        if (cargRes.ok) setWaybills(await cargRes.json());
         if (empRes.ok) setEmployees(await empRes.json());
       } catch (err) {
         console.error("Failed to load backend metrics", err);
@@ -210,10 +215,10 @@ export default function App() {
   };
 
   // Cargo Actions helpers
-  const handleSaveCargo = async (payload: Omit<CargoLoad, "id" | "status">): Promise<boolean> => {
+  const handleSaveCargo = async (payload: Omit<Waybill, "id" | "status">): Promise<boolean> => {
     try {
-      const url = editingCargo ? `/api/loads/${editingCargo.id}` : "/api/loads";
-      const method = editingCargo ? "PATCH" : "POST";
+      const url = editingWaybill ? `/api/waybills/${editingWaybill.id}` : "/api/waybills";
+      const method = editingWaybill ? "PATCH" : "POST";
 
       const res = await apiFetch(url, {
         method,
@@ -225,7 +230,7 @@ export default function App() {
 
       if (res.ok) {
         setRefreshTrigger((prev) => prev + 1);
-        setEditingCargo(null);
+        setEditingWaybill(null);
         return true;
       }
     } catch (err) {
@@ -234,9 +239,9 @@ export default function App() {
     return false;
   };
 
-  const handleUpdateCargoStatus = async (cargoId: string, status: string) => {
+  const handleUpdateCargoStatus = async (waybillId: string, status: string) => {
     try {
-      const res = await apiFetch(`/api/loads/${cargoId}/status`, {
+      const res = await apiFetch(`/api/waybills/${waybillId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json"
@@ -252,11 +257,11 @@ export default function App() {
     }
   };
 
-  const handlePrintWaybill = (cargo: CargoLoad) => {
-    setPrintWaybillCargo(cargo);
+  const handlePrintWaybill = (cargo: Waybill) => {
+    setPrintWaybillTarget(cargo);
   };
 
-  const __deprecated_print = (cargo: CargoLoad) => {
+  const __deprecated_print = (cargo: Waybill) => {
     const vehicle = findVehicleById(vehicles, cargo.vehicle_id) || null;
     
     // Create iframe securely to render print layout without bloating current DOM
@@ -406,7 +411,7 @@ export default function App() {
           <div class="document-title">
             <h1>ПУТЕВОЙ ЛИСТ ГРУЗОВОГО АВТОМОБИЛЯ</h1>
             <p>Серия КФ-ЭПЛ • Регистрационный номер № <strong>ПЛ-${cargo.id}</strong></p>
-            <p style="margin-top: 3px; font-weight: bold;">Период действия: с ${cargo.date_from} по ${cargo.date_to}</p>
+            <p style="margin-top: 3px; font-weight: bold;">Период действия: с ${cargo.planned_departure} по ${cargo.planned_arrival}</p>
           </div>
 
           <div class="section-title">1. Реквизиты юридического лица и заказчика</div>
@@ -417,15 +422,15 @@ export default function App() {
             </div>
             <div class="field-row">
               <span class="field-label">Заказчик (Отправитель):</span>
-              <span class="field-value">${cargo.customer}</span>
+              <span class="field-value">${cargo.organization_id}</span>
             </div>
             <div class="field-row">
               <span class="field-label">Пункт погрузки груза:</span>
-              <span class="field-value">г. ${cargo.from_city} (Центральный Склад)</span>
+              <span class="field-value">г. ${cargo.waybill_number} (Центральный Склад)</span>
             </div>
             <div class="field-row">
               <span class="field-label">Пункт разгрузки груза:</span>
-              <span class="field-value">г. ${cargo.to_city} (Адрес указан в ТТН)</span>
+              <span class="field-value">г. ${cargo.notes} (Адрес указан в ТТН)</span>
             </div>
           </div>
 
@@ -461,8 +466,8 @@ export default function App() {
             </thead>
             <tbody>
               <tr>
-                <td><strong>${cargo.cargo_type}</strong></td>
-                <td><strong>${cargo.weight.toLocaleString()}</strong></td>
+                <td><strong>${cargo.waybill_number}</strong></td>
+                <td><strong>${cargo.odometer_start.toLocaleString()}</strong></td>
                 <td>${cargo.status}</td>
                 <td>Стандартный температурный режим</td>
               </tr>
@@ -573,9 +578,9 @@ export default function App() {
   };
 
   // Derived Waybills Counters
-  const pendingWaybills = cargoLoads.filter((c) => c.status === "Ожидают").length;
-  const activeWaybills = cargoLoads.filter((c) => c.status === "В пути").length;
-  const deliveredWaybills = cargoLoads.filter((c) => c.status === "Доставлен").length;
+  const pendingWaybills = waybills.filter((c) => c.status === "draft").length;
+  const activeWaybills = waybills.filter((c) => c.status === "active").length;
+  const deliveredWaybills = waybills.filter((c) => c.status === "completed").length;
 
   // Telemetry cautions counters
   const alertFeed: string[] = [];
@@ -848,7 +853,7 @@ export default function App() {
                 <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs transition-transform hover:shadow-xs">
                   <span className="text-slate-400 text-[10px] uppercase font-black tracking-widest block">Путевые листы всего</span>
                   <span className="text-3xl font-black text-slate-900 mt-1 block font-mono">
-                    {cargoLoads.length}
+                    {waybills.length}
                   </span>
                   <span className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-1">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span>
@@ -899,7 +904,7 @@ export default function App() {
                     </div>
                     <MapControl
                       vehicles={vehicles}
-                      cargoLoads={validActiveCargoLoads}
+                      waybills={validActiveWaybills}
                       selectedVehicleId={selectedVehicleId}
                       onSelectVehicle={(id) => {
                         setSelectedVehicleId(id);
@@ -922,7 +927,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-2">
-                      {cargoLoads.filter(c => c.status !== DELIVERED_STATUS).map((cargo) => {
+                      {waybills.filter(c => c.status !== DELIVERED_STATUS).map((cargo) => {
                         const vehicle = findVehicleById(vehicles, cargo.vehicle_id) || null;
                         const isInvalidActiveCargo = cargo.status === IN_TRANSIT_STATUS && !vehicle;
                         const loc = vehicle ? liveLocations[Number(vehicle.id)] : null;
@@ -931,7 +936,7 @@ export default function App() {
                           <div key={cargo.id} className="bg-slate-50/60 border border-slate-200 p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs hover:bg-slate-50 transition-colors">
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-slate-900">{cargo.cargo_type}</span>
+                                <span className="font-extrabold text-slate-900">{cargo.waybill_number}</span>
                                 <span className="text-slate-400 font-mono text-[9px]">ID: {cargo.id}</span>
                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide ${
                                   isInvalidActiveCargo
@@ -942,7 +947,7 @@ export default function App() {
                                 </span>
                               </div>
                               <div className="text-slate-500 mt-1 font-sans">
-                                Пункт: {cargo.from_city} ➔ {cargo.to_city} | Заказчик: {cargo.customer} | ТС: {vehicle ? getVehicleLabel(vehicle) : "Не назначено"}
+                                Пункт: {cargo.waybill_number} ➔ {cargo.notes} | Заказчик: {cargo.organization_id} | ТС: {vehicle ? getVehicleLabel(vehicle) : "Не назначено"}
                               </div>
                               {isInvalidActiveCargo && (
                                 <div className="text-rose-600 mt-1 font-bold">
@@ -1005,7 +1010,7 @@ export default function App() {
                                 <div className="flex justify-between text-xs font-mono">
                                   <span className="text-slate-500">ЗАКАЗ НА РЕЙС:</span>
                                   <span className="text-white truncate max-w-[130px] font-sans">
-                                    {validActiveCargoLoads.find(c => sameVehicleId(c.vehicle_id, veh.id))?.cargo_type || "Свободен"}
+                                    {validActiveWaybills.find(c => sameVehicleId(c.vehicle_id, veh.id))?.waybill_number || "Свободен"}
                                   </span>
                                 </div>
                                 <div className="flex justify-between text-xs font-mono">
@@ -1075,7 +1080,7 @@ export default function App() {
 
                 <button
                   onClick={() => {
-                    setEditingCargo(null);
+                    setEditingWaybill(null);
                     setIsFormOpen(true);
                   }}
                   className="bg-[#FFD600] hover:bg-[#ffe042] text-black text-[11px] font-black uppercase tracking-wider h-10 px-5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shadow-[#FFD600]/10 select-none cursor-pointer"
@@ -1087,7 +1092,7 @@ export default function App() {
 
               {/* Waybills Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {cargoLoads.map((cargo) => {
+                {waybills.map((cargo) => {
                   const vehicle = findVehicleById(vehicles, cargo.vehicle_id) || null;
                   const isInvalidActiveCargo = cargo.status === IN_TRANSIT_STATUS && !vehicle;
 
@@ -1097,7 +1102,7 @@ export default function App() {
                         <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-2.5">
                           <div>
                             <span className="text-[9px] text-slate-400 font-mono font-black uppercase block">ВЕДОМОСТЬ ID: {cargo.id}</span>
-                            <h3 className="text-sm font-black text-slate-900 tracking-tight mt-0.5">{cargo.cargo_type}</h3>
+                            <h3 className="text-sm font-black text-slate-900 tracking-tight mt-0.5">{cargo.waybill_number}</h3>
                           </div>
 
                           <div className="flex flex-col items-end gap-1.5">
@@ -1106,7 +1111,7 @@ export default function App() {
                                 ? "bg-rose-50 text-rose-800 border-rose-100"
                                 : cargo.status === IN_TRANSIT_STATUS
                                 ? "bg-emerald-50 text-emerald-800 border-emerald-100"
-                                : cargo.status === "Ожидают"
+                                : cargo.status === "draft"
                                 ? "bg-amber-50 text-amber-800 border-amber-100"
                                 : "bg-slate-50 text-slate-500 border-slate-100"
                             }`}>
@@ -1118,15 +1123,15 @@ export default function App() {
                         <div className="space-y-1.5 text-slate-600">
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Маршрут:</span>
-                            <span className="font-extrabold text-slate-900">{cargo.from_city} ➔ {cargo.to_city}</span>
+                            <span className="font-extrabold text-slate-900">{cargo.waybill_number} ➔ {cargo.notes}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Вес брутто:</span>
-                            <span className="font-mono text-slate-900 font-bold">{cargo.weight.toLocaleString()} кг</span>
+                            <span className="font-mono text-slate-900 font-bold">{cargo.odometer_start.toLocaleString()} кг</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Заказчик:</span>
-                            <span className="truncate max-w-[150px] font-medium text-slate-900">{cargo.customer}</span>
+                            <span className="truncate max-w-[150px] font-medium text-slate-900">{cargo.organization_id}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Перевозчик:</span>
@@ -1134,7 +1139,7 @@ export default function App() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Сроки:</span>
-                            <span className="font-mono text-slate-900 font-bold">{cargo.date_from} — {cargo.date_to}</span>
+                            <span className="font-mono text-slate-900 font-bold">{cargo.planned_departure} — {cargo.planned_arrival}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Закрепленное ТС:</span>
@@ -1180,7 +1185,7 @@ export default function App() {
 
                           <button
                             onClick={() => {
-                              setEditingCargo(cargo);
+                              setEditingWaybill(cargo);
                               setIsFormOpen(true);
                             }}
                             className="text-slate-800 hover:text-black bg-[#FFD600] p-1.5 px-3 rounded-lg transition-all flex items-center gap-1 cursor-pointer font-black text-[10px] uppercase tracking-wider"
@@ -1202,10 +1207,10 @@ export default function App() {
                   vehicles={vehicles}
                   employees={employees}
                   onSave={handleSaveCargo}
-                  editingCargo={editingCargo}
+                  editingWaybill={editingWaybill}
                   onClose={() => {
                     setIsFormOpen(false);
-                    setEditingCargo(null);
+                    setEditingWaybill(null);
                   }}
                 />
               )}
@@ -1222,7 +1227,7 @@ export default function App() {
                 </div>
                 <MapControl
                   vehicles={vehicles}
-                  cargoLoads={validActiveCargoLoads}
+                  waybills={validActiveWaybills}
                   selectedVehicleId={selectedVehicleId}
                   onSelectVehicle={setSelectedVehicleId}
                   liveLocations={liveLocations}
@@ -1260,7 +1265,7 @@ export default function App() {
               <AnalyticsPanel
                 selectedVehicleId={selectedVehicleId}
                 vehicles={vehicles}
-                cargoLoads={validActiveCargoLoads}
+                waybills={validActiveWaybills}
                 liveLocations={liveLocations}
               />
             </div>
@@ -1306,12 +1311,12 @@ export default function App() {
             </div>
           )}
           
-          {printWaybillCargo && (
+          {printWaybillTarget && (
             <PrintWaybillModal
-              cargo={printWaybillCargo}
+              cargo={printWaybillTarget}
               vehicles={vehicles}
               employees={employees}
-              onClose={() => setPrintWaybillCargo(null)}
+              onClose={() => setPrintWaybillTarget(null)}
             />
           )}
         </main>
