@@ -19,6 +19,8 @@ from app.core.security import limiter
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    from app.core.database import init_db
+    init_db()
     print(f"[CargoFlow] Starting (env={settings.app_env})")
     yield
     print("[CargoFlow] Shutting down")

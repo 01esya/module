@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
-import { Vehicle, CargoLoad, LiveLocation } from "../types";
+import { Vehicle, Waybill, LiveLocation } from "../types";
 import { Truck, MapPin, Navigation, Compass, Layers, Eye, EyeOff, FileSpreadsheet } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 
@@ -12,7 +12,7 @@ import { fromLonLat } from "ol/proj";
 
 interface MapControlProps {
   vehicles: Vehicle[];
-  cargoLoads: CargoLoad[];
+  waybills: Waybill[];
   selectedVehicleId: number | null;
   onSelectVehicle: (id: number | null) => void;
   liveLocations: Record<number, LiveLocation>;
@@ -36,7 +36,7 @@ function sameVehicleId(left: number | string | null | undefined, right: number |
 
 export default function MapControl({
   vehicles,
-  cargoLoads,
+  waybills,
   selectedVehicleId,
   onSelectVehicle,
   liveLocations
@@ -260,10 +260,10 @@ export default function MapControl({
         <div className="absolute inset-0 pointer-events-none z-10 w-full h-full">
           <svg className="w-full h-full">
             {/* Active route tracks derived from cargoLoads coordinates */}
-            {cargoLoads
-              .filter((c) => c.status === "В пути" && c.coords && c.coords.length >= 2)
+            {(waybills || [])
+              .filter((c) => c.status === "В пути" && c.route_coords && c.route_coords.length >= 2)
               .map((cargo) => {
-                const pathStr = getPathData(cargo.coords);
+                const pathStr = getPathData(cargo.route_coords);
                 if (!pathStr) return null;
                 const isSelected = selectedVehicleId && liveLocations[selectedVehicleId]?.cargo_id === cargo.id;
 

@@ -3,7 +3,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 
 from app.api.auth import CurrentSession, get_current_session
-from app.services.supabase_service import SupabaseHTTPError, SupabaseService
+from app.services.local_service import SupabaseHTTPError, SupabaseService
 
 router = APIRouter()
 

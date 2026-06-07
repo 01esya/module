@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Vehicle, CargoLoad, LiveLocation, TelemetryParameters } from "../types";
+import { Vehicle, Waybill, LiveLocation, TelemetryParameters } from "../types";
 import { Brain, Compass, HelpCircle, Activity, Gauge, Zap, TrendingUp, AlertTriangle, RefreshCw, Send, CheckCircle } from "lucide-react";
 
 interface AnalyticsPanelProps {
   selectedVehicleId: number | null;
   vehicles: Vehicle[];
-  cargoLoads: CargoLoad[];
+  waybills: Waybill[];
   liveLocations: Record<number, LiveLocation>;
 }
 
@@ -19,13 +19,13 @@ function sameVehicleId(left: number | string | null | undefined, right: number |
 export default function AnalyticsPanel({
   selectedVehicleId,
   vehicles,
-  cargoLoads,
+  waybills,
   liveLocations
 }: AnalyticsPanelProps) {
   const [telemetry, setTelemetry] = useState<TelemetryParameters | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   // AI advice state
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
@@ -40,9 +40,9 @@ export default function AnalyticsPanel({
       : [];
 
   // Find associated cargo
-  const associatedCargo = currentLoc?.cargo_id 
-    ? cargoLoads.find((c) => c.id === currentLoc.cargo_id && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)))
-    : cargoLoads.find((c) => sameVehicleId(c.vehicle_id, selectedVehicleId) && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)));
+  const associatedCargo = currentLoc?.cargo_id
+    ? (waybills || []).find((c) => String(c.id) === currentLoc.cargo_id && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)))
+    : (waybills || []).find((c) => sameVehicleId(c.vehicle_id, selectedVehicleId) && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)));
 
   // Fetch telemetry details and tracking history when vehicle changes
   useEffect(() => {
@@ -314,7 +314,7 @@ export default function AnalyticsPanel({
             {associatedCargo ? (
               <div className="space-y-4">
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  ИИ проанализирует маршрут <span className="text-slate-200 font-semibold">{associatedCargo.from_city} ➔ {associatedCargo.to_city}</span>, 
+                  ИИ проанализирует маршрут <span className="text-slate-200 font-semibold">{associatedCargo.from_city} ➔ {associatedCargo.to_city}</span>,
                   текущий статус груза (<span className="text-slate-300">{associatedCargo.cargo_type}</span>) и показания датчиков ТС, выдавая отчет о возможных рисках или рекомендации по регламенту.
                 </p>
 

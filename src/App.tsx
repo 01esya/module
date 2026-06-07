@@ -11,8 +11,8 @@ import {
   Printer
 } from "lucide-react";
 
-const IN_TRANSIT_STATUS = "active";
-const DELIVERED_STATUS = "completed";
+const IN_TRANSIT_STATUS = "В пути";
+const DELIVERED_STATUS = "Доставлен";
 
 const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
   let url = input;
@@ -578,9 +578,9 @@ export default function App() {
   };
 
   // Derived Waybills Counters
-  const pendingWaybills = waybills.filter((c) => c.status === "draft").length;
-  const activeWaybills = waybills.filter((c) => c.status === "active").length;
-  const deliveredWaybills = waybills.filter((c) => c.status === "completed").length;
+  const pendingWaybills = waybills.filter((c) => c.status === "Ожидают").length;
+  const activeWaybills = waybills.filter((c) => c.status === "В пути").length;
+  const deliveredWaybills = waybills.filter((c) => c.status === "Доставлен").length;
 
   // Telemetry cautions counters
   const alertFeed: string[] = [];
@@ -1102,7 +1102,7 @@ export default function App() {
                         <div className="flex justify-between items-start mb-3 border-b border-slate-100 pb-2.5">
                           <div>
                             <span className="text-[9px] text-slate-400 font-mono font-black uppercase block">ВЕДОМОСТЬ ID: {cargo.id}</span>
-                            <h3 className="text-sm font-black text-slate-900 tracking-tight mt-0.5">{cargo.waybill_number}</h3>
+                            <h3 className="text-sm font-black text-slate-900 tracking-tight mt-0.5">{cargo.cargo_type}</h3>
                           </div>
 
                           <div className="flex flex-col items-end gap-1.5">
@@ -1111,7 +1111,7 @@ export default function App() {
                                 ? "bg-rose-50 text-rose-800 border-rose-100"
                                 : cargo.status === IN_TRANSIT_STATUS
                                 ? "bg-emerald-50 text-emerald-800 border-emerald-100"
-                                : cargo.status === "draft"
+                                : cargo.status === "Ожидают"
                                 ? "bg-amber-50 text-amber-800 border-amber-100"
                                 : "bg-slate-50 text-slate-500 border-slate-100"
                             }`}>
@@ -1123,15 +1123,15 @@ export default function App() {
                         <div className="space-y-1.5 text-slate-600">
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Маршрут:</span>
-                            <span className="font-extrabold text-slate-900">{cargo.waybill_number} ➔ {cargo.notes}</span>
+                            <span className="font-extrabold text-slate-900">{cargo.from_city} ➔ {cargo.to_city}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Вес брутто:</span>
-                            <span className="font-mono text-slate-900 font-bold">{cargo.odometer_start.toLocaleString()} кг</span>
+                            <span className="font-mono text-slate-900 font-bold">{(cargo.weight ?? 0).toLocaleString()} кг</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Заказчик:</span>
-                            <span className="truncate max-w-[150px] font-medium text-slate-900">{cargo.organization_id}</span>
+                            <span className="truncate max-w-[150px] font-medium text-slate-900">{cargo.customer}</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Перевозчик:</span>

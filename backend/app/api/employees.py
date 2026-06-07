@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.auth import CurrentSession, get_current_session
-from app.services.supabase_service import SupabaseHTTPError, SupabaseService
+from app.services.local_service import SupabaseHTTPError, SupabaseService
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 

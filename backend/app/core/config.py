@@ -16,9 +16,12 @@ class Settings(BaseSettings):
     app_env: str = "development"
     backend_port: int = 8000
 
-    # Supabase — обязательные параметры, без дефолтных значений
-    supabase_url: str
-    supabase_anon_key: str
+    # Supabase — опциональные (не нужны при работе с локальной SQLite)
+    supabase_url: str = ""
+    supabase_anon_key: str = ""
+
+    # Локальная авторизация (JWT)
+    jwt_secret: str = "cargoflow-local-dev-secret-2026"
 
     # Gemini AI
     gemini_api_key: str = ""

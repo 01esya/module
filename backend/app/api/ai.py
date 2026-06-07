@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 from app.api.auth import CurrentSession, get_current_session
 from app.core.config import settings
-from app.services.supabase_service import SupabaseHTTPError, SupabaseService
+from app.services.local_service import SupabaseHTTPError, SupabaseService
 from app.services.telemetry_simulator import generate_vehicle_parameters
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])

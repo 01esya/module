@@ -17,7 +17,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.api.auth import CurrentSession, get_current_session
-from app.services.supabase_service import SupabaseHTTPError, SupabaseService
+from app.services.local_service import SupabaseHTTPError, SupabaseService
 from app.services.telemetry_simulator import (
     generate_vehicle_history,
     generate_vehicle_location,

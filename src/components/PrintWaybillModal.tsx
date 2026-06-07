@@ -1,9 +1,9 @@
 import React from "react";
-import { CargoLoad, Vehicle, Employee } from "../types";
+import { Waybill, Vehicle, Employee } from "../types";
 import { Printer, X, BadgeCheck, FileText, CheckCircle2 } from "lucide-react";
 
 interface PrintWaybillModalProps {
-  cargo: CargoLoad;
+  cargo: Waybill;
   vehicles: Vehicle[];
   employees: Employee[];
   onClose: () => void;
@@ -21,7 +21,7 @@ export default function PrintWaybillModal({
   onClose
 }: PrintWaybillModalProps) {
   const vehicle = cargo.vehicle_id ? vehicles.find((v) => sameVehicleId(v.id, cargo.vehicle_id)) : null;
-  const driver = cargo.driver_id ? employees.find((e) => e.id === cargo.driver_id) : null;
+  const driver = cargo.driver_id ? employees.find((e) => sameVehicleId(e.id, cargo.driver_id)) : null;
 
   const dispatcher = employees.find(
     (e) =>
@@ -116,7 +116,7 @@ export default function PrintWaybillModal({
   })();
   const vehicleStateNumberText = vehicle?.state_number?.trim() || (cargo as any)?.state_number?.trim() || "—";
   const driverNameText = driver?.name?.trim() || "Водитель не назначен";
-  const driverSignatureText = driver ? getInitials(driver.name) : "Водитель не назначен";
+  const driverSignatureText = driver ? getInitials(driver.name || "") : "Водитель не назначен";
 
   const routeDistanceKm = (() => {
     const rawDistance =
@@ -136,8 +136,8 @@ export default function PrintWaybillModal({
       if (Number.isFinite(parsed) && parsed > 0) return parsed;
     }
 
-    if (Array.isArray((cargo as any)?.coords) && (cargo as any).coords.length >= 2) {
-      const points = (cargo as any).coords as [number, number][];
+    if (Array.isArray(cargo.route_coords) && cargo.route_coords.length >= 2) {
+      const points = cargo.route_coords as [number, number][];
       const toRad = (value: number) => (value * Math.PI) / 180;
       let total = 0;
       for (let i = 1; i < points.length; i += 1) {
@@ -261,7 +261,7 @@ export default function PrintWaybillModal({
                   <div className="flex items-baseline gap-1">
                     <span className="text-xs bg-slate-100 px-2 py-0.5 rounded border border-slate-300 font-mono font-bold">Д-II</span>
                     <span className="text-[10px] text-slate-500">№</span>
-                    <span className="text-xs font-extrabold font-mono border-b border-black px-4">{cargo.id.toUpperCase().replace("CARGO-", "")}</span>
+                    <span className="text-xs font-extrabold font-mono border-b border-black px-4">{String(cargo.id)}</span>
                   </div>
                 </div>
 
