@@ -31,6 +31,7 @@ export default function AnalyticsPanel({
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
+  const BASE_API_URL = "http://localhost:8000";
   const currentLoc = selectedVehicleId ? liveLocations[selectedVehicleId] : null;
   const telemetryParams = (telemetry?.parameters || (telemetry as any)?.decoded_parameters || {}) as Record<string, number | string>;
   const normalizedHistory = Array.isArray(historyData)
@@ -57,10 +58,10 @@ export default function AnalyticsPanel({
       setLoading(true);
       try {
         const [paramRes, histRes] = await Promise.all([
-          fetch(`/api/monitoring/vehicles/${selectedVehicleId}/parameters`, {
+          fetch(`${BASE_API_URL}/api/monitoring/vehicles/${selectedVehicleId}/parameters`, {
             credentials: "include"
           }),
-          fetch(`/api/monitoring/vehicles/${selectedVehicleId}/history`, {
+          fetch(`${BASE_API_URL}/api/monitoring/vehicles/${selectedVehicleId}/history`, {
             credentials: "include"
           })
         ]);
@@ -68,13 +69,22 @@ export default function AnalyticsPanel({
         if (paramRes.ok) {
           const paramJson = await paramRes.json();
           setTelemetry(paramJson);
+        } else {
+          console.error("Telemetry parameters load failed", paramRes.status, await paramRes.text());
+          setTelemetry(null);
         }
+
         if (histRes.ok) {
           const histJson = await histRes.json();
           setHistoryData(histJson);
+        } else {
+          console.error("Telemetry history load failed", histRes.status, await histRes.text());
+          setHistoryData([]);
         }
       } catch (err) {
         console.error("Failed to load telemetry", err);
+        setTelemetry(null);
+        setHistoryData([]);
       } finally {
         setLoading(false);
       }
@@ -95,14 +105,14 @@ export default function AnalyticsPanel({
     const question = presetQuestion || aiQuestion || "Сделай полный аудит выполнения рейса, оцени стабильность телеметрии, экономию топлива и дай советы водителю.";
 
     try {
-      const response = await fetch("/api/ai/analyze", {
+      const response = await fetch(`${BASE_API_URL}/api/ai/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         credentials: "include",
         body: JSON.stringify({
-          cargoId: associatedCargo.id,
+          waybill_id: associatedCargo.id,
           question: question
         })
       });

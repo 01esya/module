@@ -5,7 +5,7 @@ import { User, Phone, Shield, Trash2, Plus, UserPlus, FileText, CheckCircle } fr
 interface PersonnelGridProps {
   employees: Employee[];
   onCreate: (name: string, role: string, phone: string) => Promise<boolean>;
-  onDelete: (id: string) => Promise<boolean>;
+  onDelete: (id: string | number) => Promise<boolean>;
 }
 
 export default function PersonnelGrid({
@@ -151,7 +151,7 @@ export default function PersonnelGrid({
               </div>
               <div className="min-w-0">
                 <h3 className="text-xs font-bold text-slate-100 tracking-tight text-ellipsis overflow-hidden truncate">
-                  {emp.name}
+                  {emp.name || emp.full_name || "Сотрудник без имени"}
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
                   <Shield className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />

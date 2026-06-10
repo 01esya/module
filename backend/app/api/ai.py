@@ -1,11 +1,12 @@
 """
 API-роутер модуля ИИ-аналитики рейсов.
 
-Интегрирует Google Gemini API (модель gemini-2.5-flash) для генерации
-аналитических отчётов по данным путевых листов и телеметрии ТС.
+Интегрирует OpenRouter API для генерации аналитических отчётов 
+по данным путевых листов и телеметрии ТС.
 """
 
 from typing import Any
+import httpx  # Перенесли импорт наверх
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
@@ -29,7 +30,7 @@ class AiAnalyzeRequest(BaseModel):
 
 @router.post(
     "/analyze",
-    summary="ИИ-аудит путевого листа (Gemini)",
+    summary="ИИ-аудит путевого листа (OpenRouter)",
     response_model=dict[str, str],
 )
 async def ai_analyze(
@@ -38,11 +39,11 @@ async def ai_analyze(
 ) -> dict[str, str]:
     """
     Генерирует аналитический отчёт по путевому листу с использованием
-    Gemini AI. Контекст запроса включает данные маршрута, груза,
+    OpenRouter API. Контекст запроса включает данные маршрута, груза,
     транспортного средства и текущие параметры телеметрии.
     """
-    if not settings.gemini_api_key:
-        raise HTTPException(status_code=503, detail="GEMINI_API_KEY не настроен")
+    if not settings.openrouter_api_key:
+        raise HTTPException(status_code=503, detail="API ключ OpenRouter не настроен")
 
     svc = SupabaseService()
     token = session.access_token
@@ -50,7 +51,7 @@ async def ai_analyze(
     # Получаем данные путевого листа
     waybill = await svc.get_waybill(payload.waybill_id, token)
     if not waybill:
-        raise HTTPException(status_code=404, detail="Путевой лист не найден")
+        raise HTTPException(status_code=404, detail="Путевой лист не найден")  # Исправлена опечатка
 
     # Получаем телеметрию ТС (если ТС назначено)
     telemetry_ctx = ""
@@ -82,23 +83,49 @@ async def ai_analyze(
         + (f"Телеметрия CAN: {telemetry_ctx}.\n" if telemetry_ctx else "")
     )
 
-    prompt = (
-        f"Ты — система ИИ-аудита логистической компании CargoFlow.\n"
-        f"Данные рейса:\n{context}\n"
-        f"Вопрос диспетчера: {payload.question}\n"
-        f"Дай чёткий профессиональный ответ на русском языке."
-    )
-
     try:
-        from google import genai  # импорт здесь, чтобы не падать при отсутствии ключа
-        client = genai.Client(api_key=settings.gemini_api_key)
-        response = client.models.generate_content(
-            model="gemini-2.5-flash",
-            contents=prompt,
-        )
-        return {"text": response.text}
+        # Обязательные заголовки + рекомендуемые для OpenRouter
+        headers = {
+            "Authorization": f"Bearer {settings.openrouter_api_key}",
+            "Content-Type": "application/json",
+            "HTTP-Referer": "http://localhost:8000",
+            "X-Title": "CargoFlow Logistics AI",
+        }
+        
+        api_payload = {
+            "model": "openrouter/free",
+            "messages": [
+                {
+                    "role": "system",
+                    "content": f"Ты — система ИИ-аудита логистической компании CargoFlow.\nДанные рейса:\n{context}\n"
+                },
+                {
+                    "role": "user",
+                    "content": payload.question
+                }
+            ],
+            "temperature": 0.7,
+            "max_tokens": 2048
+        }
+        
+        async with httpx.AsyncClient() as client:
+            api_response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                json=api_payload,
+                headers=headers,
+                timeout=30.0
+            )
+        
+        if api_response.status_code == 200:
+            result = api_response.json()
+            return {"text": result["choices"][0]["message"]["content"]}
+        else:
+            raise HTTPException(
+                status_code=502,
+                detail=f"OpenRouter API error: {api_response.status_code} - {api_response.text}"
+            )
     except Exception as exc:
         raise HTTPException(
             status_code=502,
-            detail=f"Gemini API error: {exc}",
+            detail=f"AI Service error: {exc}",
         ) from exc

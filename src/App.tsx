@@ -215,7 +215,7 @@ export default function App() {
   };
 
   // Cargo Actions helpers
-  const handleSaveCargo = async (payload: Omit<Waybill, "id" | "status">): Promise<boolean> => {
+  const handleSaveCargo = async (payload: any): Promise<boolean> => {
     try {
       const url = editingWaybill ? `/api/waybills/${editingWaybill.id}` : "/api/waybills";
       const method = editingWaybill ? "PATCH" : "POST";
@@ -545,7 +545,7 @@ export default function App() {
     return false;
   };
 
-  const handleDeleteEmployee = async (id: string): Promise<boolean> => {
+  const handleDeleteEmployee = async (id: string | number): Promise<boolean> => {
     if (!confirm("Вы уверены, что хотите удалить сотрудника из штата компании?")) return false;
     try {
       const res = await apiFetch(`/api/employees/${id}`, {

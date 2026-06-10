@@ -46,10 +46,11 @@ export interface Waybill {
 }
 
 export interface Employee {
-  id: string;
-  name: string;
-  role: string;
-  phone: string;
+  id: string | number;
+  name?: string;
+  full_name?: string;
+  role?: string;
+  phone?: string;
 }
 
 export interface User {

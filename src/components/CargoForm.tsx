@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CargoLoad, Vehicle, Employee } from "../types";
+import { Vehicle, Employee, Waybill } from "../types";
 
 function getVehicleLabel(vehicle: Vehicle | null | undefined) {
   const model = vehicle?.model?.trim();
@@ -12,12 +12,27 @@ function getVehicleLabel(vehicle: Vehicle | null | undefined) {
 }
 import { PlusCircle, Edit3, Calendar, Package, ArrowRightLeft, MapPin, Truck, ShieldCheck, X, User } from "lucide-react";
 
+interface WaybillFormPayload {
+  cargo_type: string;
+  weight: number;
+  customer: string;
+  carrier: string;
+  from_city: string;
+  to_city: string;
+  date_from: string;
+  date_to: string;
+  route_coords: [number, number][];
+  vehicle_id: number | null;
+  driver_id: number | null;
+  organization_id?: number;
+}
+
 interface CargoFormProps {
   vehicles: Vehicle[];
   employees: Employee[];
-  onSave: (cargo: Omit<CargoLoad, "id" | "status">) => Promise<boolean>;
+  onSave: (cargo: WaybillFormPayload) => Promise<boolean>;
   onClose: () => void;
-  editingCargo: CargoLoad | null;
+  editingCargo: Waybill | null;
 }
 
 // Preset route options for simple coordinates mapping
@@ -95,7 +110,7 @@ export default function CargoForm({
     [55.7558, 37.6173],
     [59.9343, 30.3351]
   ]);
-  const [assignedVehicleId, setAssignedVehicleId] = useState<number | "">("");
+  const [assignedVehicleId, setAssignedVehicleId] = useState<string | "">("");
   const [assignedDriverId, setAssignedDriverId] = useState<string | "">("");
   
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -113,9 +128,9 @@ export default function CargoForm({
       setToCity(editingCargo.to_city);
       setDateFrom(editingCargo.date_from);
       setDateTo(editingCargo.date_to);
-      setCoords(editingCargo.coords);
-      setAssignedVehicleId(editingCargo.vehicle_id || "");
-      setAssignedDriverId(editingCargo.driver_id || "");
+      setCoords(editingCargo.route_coords || []);
+      setAssignedVehicleId(editingCargo.vehicle_id != null ? String(editingCargo.vehicle_id) : "");
+      setAssignedDriverId(editingCargo.driver_id != null ? String(editingCargo.driver_id) : "");
     } else {
       // Default dates: today and a week from now
       const today = new Date().toISOString().split("T")[0];
@@ -129,8 +144,8 @@ export default function CargoForm({
   useEffect(() => {
     if (assignedVehicleId !== "" && !editingCargo) {
       const selectedVehicle = vehicles.find((v) => Number(v.id) === Number(assignedVehicleId));
-      if (selectedVehicle && selectedVehicle.driver_id) {
-        setAssignedDriverId(selectedVehicle.driver_id);
+      if (selectedVehicle && selectedVehicle.driver_id != null) {
+        setAssignedDriverId(String(selectedVehicle.driver_id));
       }
     }
   }, [assignedVehicleId, vehicles, editingCargo]);
@@ -179,7 +194,7 @@ export default function CargoForm({
 
     setLoading(true);
 
-    const payload = {
+    const payload: WaybillFormPayload = {
       weight,
       cargo_type: cargoType,
       customer,
@@ -188,9 +203,9 @@ export default function CargoForm({
       to_city: toCity,
       date_from: dateFrom,
       date_to: dateTo,
-      coords,
+      route_coords: coords,
       vehicle_id: assignedVehicleId === "" ? null : Number(assignedVehicleId),
-      driver_id: assignedDriverId === "" ? null : assignedDriverId
+      driver_id: assignedDriverId === "" ? null : Number(assignedDriverId),
     };
 
     const isOk = await onSave(payload);
@@ -384,7 +399,7 @@ export default function CargoForm({
               </label>
               <select
                 value={assignedVehicleId}
-                onChange={(e) => setAssignedVehicleId(e.target.value === "" ? "" : Number(e.target.value))}
+                onChange={(e) => setAssignedVehicleId(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs px-3 py-2.5 focus:outline-none focus:border-amber-500 font-sans font-bold"
               >
                 <option value="">-- Без ТС (Ожидание) --</option>
@@ -408,11 +423,15 @@ export default function CargoForm({
                 className="w-full bg-slate-950 border border-slate-800 rounded-lg text-slate-200 text-xs px-3 py-2.5 focus:outline-none focus:border-amber-500 font-sans font-bold"
               >
                 <option value="">-- Выберите водителя --</option>
-                {employees.map((emp) => (
-                  <option key={emp.id} value={emp.id}>
-                    {emp.name} {emp.id.startsWith("emp") ? `(${emp.role})` : ""}
-                  </option>
-                ))}
+                {employees.map((emp) => {
+                  const empId = String(emp.id);
+                  const empName = emp.name || emp.full_name || "Сотрудник без имени";
+                  return (
+                    <option key={empId} value={empId}>
+                      {empName} {empId.startsWith("emp") ? `(${emp.role || "сотрудник"})` : ""}
+                    </option>
+                  );
+                })}
               </select>
             </div>
           </div>

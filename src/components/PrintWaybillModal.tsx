@@ -23,17 +23,17 @@ export default function PrintWaybillModal({
   const vehicle = cargo.vehicle_id ? vehicles.find((v) => sameVehicleId(v.id, cargo.vehicle_id)) : null;
   const driver = cargo.driver_id ? employees.find((e) => sameVehicleId(e.id, cargo.driver_id)) : null;
 
-  const dispatcher = employees.find(
-    (e) =>
-      e.role.toLowerCase().includes("диспетчер") ||
-      e.name.toLowerCase().includes("васильев")
-  ) || { id: "emp-4", name: "Васильев Олег Игоревич", role: "Диспетчер-координатор" };
+  const dispatcher = employees.find((e) => {
+    const role = String(e.role || "").toLowerCase();
+    const name = String(e.name || e.full_name || "").toLowerCase();
+    return role.includes("диспетчер") || name.includes("васильев");
+  }) || { id: "emp-4", name: "Васильев Олег Игоревич", role: "Диспетчер-координатор" };
 
-  const mechanic = employees.find(
-    (e) =>
-      e.role.toLowerCase().includes("механик") ||
-      e.name.toLowerCase().includes("козлов")
-  ) || { id: "emp-2", name: "Козлов Кирилл Николаевич", role: "Старший механик" };
+  const mechanic = employees.find((e) => {
+    const role = String(e.role || "").toLowerCase();
+    const name = String(e.name || e.full_name || "").toLowerCase();
+    return role.includes("механик") || name.includes("козлов");
+  }) || { id: "emp-2", name: "Козлов Кирилл Николаевич", role: "Старший механик" };
 
   // Helper to get last name and initials (e.g., "Иванов Виталий Николаевич" -> "Иванов В.Н.")
   const getInitials = (fullName?: string) => {
@@ -115,8 +115,8 @@ export default function PrintWaybillModal({
     return candidates[0]?.trim() || "Модель не указана";
   })();
   const vehicleStateNumberText = vehicle?.state_number?.trim() || (cargo as any)?.state_number?.trim() || "—";
-  const driverNameText = driver?.name?.trim() || "Водитель не назначен";
-  const driverSignatureText = driver ? getInitials(driver.name || "") : "Водитель не назначен";
+  const driverNameText = (driver?.name || driver?.full_name || "").trim() || "Водитель не назначен";
+  const driverSignatureText = driverNameText !== "Водитель не назначен" ? getInitials(driverNameText) : "Водитель не назначен";
 
   const routeDistanceKm = (() => {
     const rawDistance =

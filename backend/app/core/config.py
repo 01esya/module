@@ -10,6 +10,14 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+# 1. Сначала вычисляем абсолютный путь к .env в корне проекта (вне класса)
+_current_file_path = os.path.abspath(__file__)  # путь к этому файлу config.py
+_app_core_dir = os.path.dirname(_current_file_path)  # папка app/core
+_app_dir = os.path.dirname(_app_core_dir)  # папка app
+_backend_dir = os.path.dirname(_app_dir)  # папка backend
+_root_module_dir = os.path.dirname(_backend_dir)  # корень проекта (папка module)
+
+_env_path = os.path.join(_root_module_dir, ".env")
 
 class Settings(BaseSettings):
     app_name: str = "CargoFlow Backend"
@@ -23,14 +31,14 @@ class Settings(BaseSettings):
     # Локальная авторизация (JWT)
     jwt_secret: str = "cargoflow-local-dev-secret-2026"
 
-    # Gemini AI
-    gemini_api_key: str = ""
+    # openrouter API
+    openrouter_api_key: str | None = None
 
     # Rate limiting
     rate_limit_requests: int = 60
 
     model_config = SettingsConfigDict(
-        env_file=".env",
+        env_file=_env_path,
         env_file_encoding="utf-8",
         extra="ignore",
     )
@@ -47,6 +55,6 @@ class Settings(BaseSettings):
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
-
-
+print("ЗАГРУЖЕННЫЙ КЛЮЧ:", get_settings().openrouter_api_key)
+print("ИЩУ ТУТ:", _env_path)
 settings = get_settings()
