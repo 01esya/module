@@ -13,7 +13,7 @@ from fastapi import APIRouter, Cookie as FastAPICookie, Depends, Header, HTTPExc
 from pydantic import BaseModel
 
 from app.core.security import limiter
-from app.services.local_service import SupabaseService
+from app.services.local_service import LocalDBService as SupabaseService
 
 router = APIRouter()
 

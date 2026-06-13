@@ -12,6 +12,7 @@ import httpx
 
 from app.core.config import settings
 
+import time
 
 class SupabaseHTTPError(Exception):
     def __init__(self, status_code: int, detail: Any) -> None:
@@ -267,3 +268,18 @@ class SupabaseService:
             f"/rest/v1/waybills?id=eq.{waybill_id}",
             access_token,
         )
+
+
+_token_cache: dict = {"token": None, "expires_at": 0.0}
+
+async def get_supabase_token() -> str:
+    """Токен сервисного пользователя Supabase с кэшированием."""
+    if _token_cache["token"] and time.time() < _token_cache["expires_at"] - 60:
+        return _token_cache["token"]
+    data = await SupabaseService().login(
+        settings.supabase_service_email,
+        settings.supabase_service_password,
+    )
+    _token_cache["token"] = data["access_token"]
+    _token_cache["expires_at"] = time.time() + data.get("expires_in", 3600)
+    return _token_cache["token"]

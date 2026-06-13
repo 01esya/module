@@ -76,6 +76,7 @@ export default function App() {
   const [editingWaybill, setEditingWaybill] = useState<Waybill | null>(null);
   const [printWaybillTarget, setPrintWaybillTarget] = useState<Waybill | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  const [loadingStatusId, setLoadingStatusId] = useState<string | null>(null)
   const validActiveWaybills = useMemo(
     () => waybills.filter((cargo) => hasValidActiveVehicle(cargo, vehicles)),
     [waybills, vehicles]
@@ -240,6 +241,8 @@ export default function App() {
   };
 
   const handleUpdateCargoStatus = async (waybillId: string, status: string) => {
+    if (loadingStatusId) return;
+    setLoadingStatusId(waybillId);
     try {
       const res = await apiFetch(`/api/waybills/${waybillId}`, {
         method: "PATCH",
@@ -254,6 +257,8 @@ export default function App() {
       }
     } catch (err) {
       console.error("Update status waybill failed", err);
+    } finally {
+      setLoadingStatusId(null);
     }
   };
 
@@ -422,15 +427,15 @@ export default function App() {
             </div>
             <div class="field-row">
               <span class="field-label">Заказчик (Отправитель):</span>
-              <span class="field-value">${cargo.organization_id}</span>
+              <span class="field-value">${cargo.customer}</span>
             </div>
             <div class="field-row">
               <span class="field-label">Пункт погрузки груза:</span>
-              <span class="field-value">г. ${cargo.waybill_number} (Центральный Склад)</span>
+              <span class="field-value">г. ${cargo.from_city} (Центральный Склад)</span>
             </div>
             <div class="field-row">
               <span class="field-label">Пункт разгрузки груза:</span>
-              <span class="field-value">г. ${cargo.notes} (Адрес указан в ТТН)</span>
+              <span class="field-value">г. ${cargo.to_city} (Адрес указан в ТТН)</span>
             </div>
           </div>
 
@@ -466,7 +471,7 @@ export default function App() {
             </thead>
             <tbody>
               <tr>
-                <td><strong>${cargo.waybill_number}</strong></td>
+                <td><strong>${cargo.from_city}</strong></td>
                 <td><strong>${cargo.odometer_start.toLocaleString()}</strong></td>
                 <td>${cargo.status}</td>
                 <td>Стандартный температурный режим</td>
@@ -525,14 +530,14 @@ export default function App() {
   };
 
   // Personnel Actions helpers
-  const handleCreateEmployee = async (name: string, role: string, phone: string): Promise<boolean> => {
+  const handleCreateEmployee = async (full_name: string, role: string, phone: string): Promise<boolean> => {
     try {
       const res = await apiFetch("/api/employees", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ name, role, phone })
+        body: JSON.stringify({ full_name, role, phone })
       });
 
       if (res.ok) {
@@ -936,7 +941,7 @@ export default function App() {
                           <div key={cargo.id} className="bg-slate-50/60 border border-slate-200 p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs hover:bg-slate-50 transition-colors">
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-slate-900">{cargo.waybill_number}</span>
+                                <span className="font-extrabold text-slate-900">{cargo.from_city}</span>
                                 <span className="text-slate-400 font-mono text-[9px]">ID: {cargo.id}</span>
                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide ${
                                   isInvalidActiveCargo
@@ -947,7 +952,7 @@ export default function App() {
                                 </span>
                               </div>
                               <div className="text-slate-500 mt-1 font-sans">
-                                Пункт: {cargo.waybill_number} ➔ {cargo.notes} | Заказчик: {cargo.organization_id} | ТС: {vehicle ? getVehicleLabel(vehicle) : "Не назначено"}
+                                Пункт: {cargo.from_city} ➔ {cargo.to_city} | Заказчик: {cargo.customer} | ТС: {vehicle ? getVehicleLabel(vehicle) : "Не назначено"}
                               </div>
                               {isInvalidActiveCargo && (
                                 <div className="text-rose-600 mt-1 font-bold">
@@ -1139,7 +1144,7 @@ export default function App() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Сроки:</span>
-                            <span className="font-mono text-slate-900 font-bold">{cargo.planned_departure} — {cargo.planned_arrival}</span>
+                            <span className="font-mono text-slate-900 font-bold">{cargo.date_from} — {cargo.date_to}</span>
                           </div>
                           <div className="flex justify-between items-center">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Закрепленное ТС:</span>
@@ -1207,7 +1212,7 @@ export default function App() {
                   vehicles={vehicles}
                   employees={employees}
                   onSave={handleSaveCargo}
-                  editingWaybill={editingWaybill}
+                  editingCargo={editingWaybill}
                   onClose={() => {
                     setIsFormOpen(false);
                     setEditingWaybill(null);
@@ -1236,13 +1241,13 @@ export default function App() {
             </div>
           )}
 
-          {/* Active Tab: Telemetry & Gemini IA assistant */}
+          {/* Active Tab: Telemetry & AI assistant */}
           {activeTab === "telemetry" && (
             <div className="space-y-6 animate-[fadeIn_0.2s_ease-out]">
               <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full overflow-hidden">
                 <div className="min-w-0 flex-1">
                   <h2 className="text-base font-black text-slate-900 uppercase truncate">Метрики телеметрии и ИИ-Аудит рисков</h2>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">Исследование показателей телеметрии и аудит рисков с помощью Gemini Pro</p>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">Исследование показателей телеметрии и аудит рисков с помощью ИИ</p>
                 </div>
 
                 <div className="flex items-center gap-2 select-none w-full md:w-auto flex-shrink-0">

@@ -11,7 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
 
 from app.api.auth import CurrentSession, get_current_session
-from app.services.local_service import SupabaseHTTPError, SupabaseService
+from app.services.local_service import LocalDBError as SupabaseHTTPError, LocalDBService as SupabaseService
 
 router = APIRouter(prefix="/api/employees", tags=["employees"])
 
@@ -25,7 +25,7 @@ class EmployeeCreate(BaseModel):
     role: str = Field("Водитель", min_length=1, max_length=100,
                       description="Должность / роль")
     phone: str = Field("", max_length=20, description="Телефон (+79XXXXXXXXX)")
-    organization_id: int = Field(..., description="ID организации")
+    organization_id: int = Field(1, description="ID организации")
     license_number: Optional[str] = Field(None, description="Серия и номер ВУ")
     license_class: Optional[str] = Field(None, description="Категория ВУ (B, C, CE)")
     snils: Optional[str] = Field(None, description="СНИЛС")

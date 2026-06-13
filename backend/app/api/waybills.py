@@ -12,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pydantic import BaseModel, Field, field_validator
 
 from app.api.auth import CurrentSession, get_current_session
-from app.services.local_service import SupabaseHTTPError, SupabaseService
+from app.services.local_service import LocalDBError as SupabaseHTTPError, LocalDBService as SupabaseService
 
 router = APIRouter(prefix="/api/waybills", tags=["waybills"])
 
@@ -41,7 +41,7 @@ class WaybillCreate(BaseModel):
         default_factory=list,
         description="Координаты маршрута [[lat, lon], ...]",
     )
-    organization_id: int = Field(..., description="ID организации")
+    organization_id: int = Field(1, description="ID организации")
 
     @field_validator("route_coords")
     @classmethod

@@ -90,7 +90,7 @@ class Waybill(Base):
     status = Column(Text, nullable=False, default="Ожидают")
 
     driver_id = Column(Integer, ForeignKey("employees.id"))
-    vehicle_id = Column(Integer, ForeignKey("vehicles.id"))
+    vehicle_id = Column(Integer, nullable=True)
     route_id = Column(Integer)       # FK → route_routes (в Supabase)
     timetable_id = Column(Integer)   # FK → timetable_timetables (в Supabase)
     order_id = Column(Integer)       # FK → timetable_orders (в Supabase)
@@ -118,7 +118,7 @@ class Waybill(Base):
     updated_at = Column(Text, default=_now_iso)
 
     # Relationships (eager JOIN для корректной сериализации)
-    vehicle = relationship("Vehicle", foreign_keys=[vehicle_id], lazy="joined")
+    #vehicle = relationship("Vehicle", foreign_keys=[vehicle_id], lazy="joined")
     driver = relationship("Employee", foreign_keys=[driver_id], lazy="joined")
 
 

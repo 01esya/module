@@ -96,7 +96,7 @@ export default function AnalyticsPanel({
     return () => clearInterval(interval);
   }, [selectedVehicleId]);
 
-  // Handle Gemini AI advice requests
+  // Handle AI advice requests
   async function generateAiReport(presetQuestion?: string) {
     if (!selectedVehicleId || !associatedCargo) return;
     setAiLoading(true);
@@ -314,7 +314,7 @@ export default function AnalyticsPanel({
             <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                 <Brain className="w-4.5 h-4.5 text-amber-500" />
-                ИИ-Ассистент Диспетчера (Gemini AI)
+                ИИ-Ассистент Диспетчера
               </h3>
               <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono font-bold">
                 PRO ACTIVE AI

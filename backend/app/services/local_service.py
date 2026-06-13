@@ -364,12 +364,7 @@ class LocalDBService:
             "driver": None,
         }
 
-        if w.vehicle:
-            result["vehicle"] = {
-                "id": w.vehicle.id,
-                "state_number": w.vehicle.state_number,
-                "number": w.vehicle.number,
-            }
+
 
         if w.driver:
             result["driver"] = {
@@ -386,5 +381,5 @@ class LocalDBService:
 # Роутеры импортируют именно эти имена, поэтому меняется только
 # путь импорта (supabase_service → local_service), а код — нет.
 
-SupabaseHTTPError = LocalDBError
-SupabaseService = LocalDBService
+#SupabaseHTTPError = LocalDBError
+#SupabaseService = LocalDBService

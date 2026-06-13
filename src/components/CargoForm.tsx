@@ -110,6 +110,7 @@ export default function CargoForm({
     [55.7558, 37.6173],
     [59.9343, 30.3351]
   ]);
+  const [selectedPreset, setSelectedPreset] = useState("")
   const [assignedVehicleId, setAssignedVehicleId] = useState<string | "">("");
   const [assignedDriverId, setAssignedDriverId] = useState<string | "">("");
   
@@ -131,7 +132,12 @@ export default function CargoForm({
       setCoords(editingCargo.route_coords || []);
       setAssignedVehicleId(editingCargo.vehicle_id != null ? String(editingCargo.vehicle_id) : "");
       setAssignedDriverId(editingCargo.driver_id != null ? String(editingCargo.driver_id) : "");
+      const match = PRESET_ROUTES.find(
+        (r) => JSON.stringify(r.coords) === JSON.stringify(editingCargo.route_coords)
+      );
+      setSelectedPreset(match ? match.name : "");
     } else {
+      setSelectedPreset("");
       // Default dates: today and a week from now
       const today = new Date().toISOString().split("T")[0];
       const weekLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
@@ -154,6 +160,7 @@ export default function CargoForm({
   const handlePresetChange = (presetName: string) => {
     const r = PRESET_ROUTES.find((route) => route.name === presetName);
     if (r) {
+      setSelectedPreset(presetName)
       setFromCity(r.fromCity);
       setToCity(r.toCity);
       setCoords(r.coords as [number, number][]);
@@ -258,7 +265,7 @@ export default function CargoForm({
             </label>
             <select
               onChange={(e) => handlePresetChange(e.target.value)}
-              defaultValue=""
+              value={selectedPreset}
               className="w-full bg-slate-900 border border-slate-800 rounded-lg text-slate-200 text-xs px-3 py-2 focus:outline-none focus:border-amber-500 font-sans"
             >
               <option value="" disabled>--- Выберите маршрутную нитку перевозки ---</option>

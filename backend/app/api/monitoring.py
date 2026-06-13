@@ -17,7 +17,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.api.auth import CurrentSession, get_current_session
-from app.services.local_service import SupabaseHTTPError, SupabaseService
+
+from app.services.supabase_service import SupabaseHTTPError, SupabaseService, get_supabase_token
+from app.core.config import settings
+
+from app.services.local_service import LocalDBService
 from app.services.telemetry_simulator import (
     generate_vehicle_history,
     generate_vehicle_location,
@@ -46,9 +50,12 @@ async def monitoring_vehicles(
     session: CurrentSession = Depends(get_current_session),
 ) -> list[dict[str, Any]]:
     try:
-        return await SupabaseService().get_vehicles(session.access_token)
+        return await SupabaseService().get_vehicles(await get_supabase_token())
     except SupabaseHTTPError as exc:
         _raise(exc)
+    except Exception:
+        return await LocalDBService().get_vehicles(session.access_token)
+
 
 
 @router.get("/api/monitoring/vehicles/{vehicle_id}", tags=["monitoring"])
@@ -57,10 +64,11 @@ async def monitoring_vehicle(
     session: CurrentSession = Depends(get_current_session),
 ) -> list[dict[str, Any]]:
     try:
-        return await SupabaseService().get_vehicle(vehicle_id, session.access_token)
+        return await SupabaseService().get_vehicle(vehicle_id, await get_supabase_token())
     except SupabaseHTTPError as exc:
         _raise(exc)
-
+    except Exception:
+        return await LocalDBService().get_vehicle(vehicle_id, session.access_token)
 
 @router.get("/api/monitoring/device-types", tags=["monitoring"])
 async def device_types(
@@ -171,10 +179,15 @@ async def vehicle_location(
     находится на базовой стоянке.
     """
     svc = SupabaseService()
+    svc_local = LocalDBService()
     token = _.access_token
 
     # Получаем данные о ТС для передачи в симулятор
-    vehicles = await svc.get_vehicles(token)
+        # Получаем данные о ТС для передачи в симулятор
+    try:
+        vehicles = await svc.get_vehicles(await get_supabase_token())
+    except Exception:
+        vehicles = await svc_local.get_vehicles(token)
     vehicle = next((v for v in vehicles if v["id"] == vehicle_id), None)
     state_number = vehicle["state_number"] if vehicle else f"TS-{vehicle_id:04d}"
 
@@ -183,7 +196,7 @@ async def vehicle_location(
     route_coords = None
     cargo_id = None
     try:
-        waybills = await svc.get_waybills(token, status="В пути")
+        waybills = await svc_local.get_waybills(_.access_token, status="В пути")
         active = next(
             (w for w in waybills if w.get("vehicle_id") == vehicle_id),
             None,
@@ -191,11 +204,11 @@ async def vehicle_location(
         if active:
             route_coords = active.get("route_coords")
             cargo_id = str(active["id"])
-    except SupabaseHTTPError:
-        # Таблица waybills не найдена (PGRST205) — работаем без маршрута
+    except Exception:
         pass
 
     return generate_vehicle_location(vehicle_id, state_number, route_coords, cargo_id)
+
 
 
 @router.get(
