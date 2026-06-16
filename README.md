@@ -183,7 +183,7 @@ module/
 │   │   │   ├── waybills.py      # CRUD путевых листов
 │   │   │   ├── employees.py     # CRUD сотрудников
 │   │   │   ├── vehicles.py      # ТС (Supabase)
-│   │   │   ├── monitoring.py    # GPS/ГЛОНАСС телеметрия
+│   │   │   ├── monitoring.py    # Имитация спутниковой GPS/ГЛОНАСС-телеметрии
 │   │   │   └── ai.py            # ИИ-аналитика (OpenRouter)
 │   │   ├── core/
 │   │   │   ├── config.py        # Настройки (Pydantic Settings)
