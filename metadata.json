@@ -1,6 +1,0 @@
-{
-  "name": "CargoFlow - Путевые листы и Мониторинг ТС",
-  "description": "Система создания путевых листов, отслеживания перемещения ТС по GPS каналам, телеметрии топлива и скорости, и оптимизации маршрутов силами ИИ (Gemini).",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
