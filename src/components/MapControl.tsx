@@ -200,7 +200,7 @@ export default function MapControl({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
             </span>
-            Живая ГИС карта дорог OpenLayers
+            Карта дорог ГИС
           </h2>
           <p className={`text-xs ${isLight ? "text-slate-500" : "text-slate-400"} mt-0.5`}>
             Интерактивный контроль движения ведомственной техники по федеральным трассам

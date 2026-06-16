@@ -15,12 +15,9 @@ const IN_TRANSIT_STATUS = "В пути";
 const DELIVERED_STATUS = "Доставлен";
 
 const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
-  let url = input;
-  if (typeof input === "string" && input.startsWith("/api")) {
-    url = `http://localhost:8000${input}`;
-  }
-  return fetch(url, { credentials: "include", ...init });
+  return fetch(input, { credentials: "include", ...init });
 };
+
 
 function sameVehicleId(left: number | string | null | undefined, right: number | string | null | undefined) {
   if (left === null || left === undefined || right === null || right === undefined) return false;

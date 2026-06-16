@@ -38,7 +38,15 @@ htmlcov/
 *.swp
 *.swo
 
-# ─── Dev tools ────────────────────────────────────────────────
+# ─── Dev tools / мусор ────────────────────────────────────────
 backend/run_migration.ps1
 backend/migration_agent.html
+backend/cargoflow.db
+backend/cargoflow.db.bak
 data_store.json
+*.bak
+swagger.json
+metadata.json
+supabase_api_documentation.md
+supabase_http.ts
+api.http

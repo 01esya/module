@@ -16,6 +16,8 @@ from app.api import ai, auth, employees, health, monitoring, vehicles, waybills
 from app.core.config import settings
 from app.core.security import limiter
 
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -63,7 +65,10 @@ app.include_router(employees.router)
 app.include_router(monitoring.router)
 app.include_router(ai.router)
 
+_dist = Path(__file__).resolve().parents[2] / "dist"
+if _dist.exists():
+    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="static")
 
-@app.get("/", tags=["meta"], include_in_schema=False)
-def root() -> dict[str, str]:
-    return {"service": "CargoFlow Backend", "version": "1.0.0", "docs": "/docs"}
+
+
+

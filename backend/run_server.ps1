@@ -9,8 +9,8 @@
 
 $ErrorActionPreference = "Stop"
 
-$ROOT = "c:\Users\User\cargo\module"
-$BACKEND = "$ROOT\backend"
+$BACKEND = $PSScriptRoot
+$ROOT = Split-Path $BACKEND -Parent
 $VENV = "$ROOT\.venv"
 $PYTHON = "$VENV\Scripts\python.exe"
 

@@ -1,243 +1,217 @@
-# CargoFlow Backend API
+# CargoFlow — Система управления грузоперевозками
 
-**Backend модуль формирования электронных путевых листов с интеграцией со спутниковой системой мониторинга транспорта**
+Информационная система формирования электронных путевых листов (ЭПЛ) с модулем мониторинга транспортных средств на базе спутниковых данных GPS/ГЛОНАСС и ИИ-аудитом рейсов.
 
-[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com)
-[![Supabase](https://img.shields.io/badge/Supabase-Self--Hosted-3ecf8e.svg)](https://supabase.com)
+Система предназначена для автоматизации документооборота автотранспортного предприятия: выписка путевых листов, управление штатом водителей, контроль местоположения и состояния транспортных средств в реальном времени, аналитика рейсов с помощью ИИ.
+
+---
+
+## Стек технологий
+
+### Frontend
+
+| Назначение | Технология |
+|------------|------------|
+| UI-фреймворк | React 19 + TypeScript |
+| Сборка / dev-сервер | Vite 6 |
+| Стили | Tailwind CSS 4 |
+| Картография | OpenLayers (`ol`) |
+| Анимации | Motion |
+| Иконки | lucide-react |
+
+### Backend (порт 8000)
+
+| Назначение | Технология |
+|------------|------------|
+| API-фреймворк | FastAPI |
+| ORM / БД | SQLAlchemy + SQLite |
+| HTTP-клиент | httpx |
+| Авторизация | PyJWT, bcrypt |
+| Rate limiting | SlowAPI |
+| Раздача статики | FastAPI StaticFiles (в продакшене) |
+| Контейнеризация | Docker (multi-stage build) |
+| Тесты | pytest, pytest-asyncio |
+
+### Внешние системы
+
+- **Supabase** (PostgreSQL + PostgREST) — мастер-данные: транспортные средства, организации
+- **OpenRouter** — ИИ-аудит рейсов (LLM-модель)
 
 ---
 
 ## Архитектура
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                 Frontend (React / TS)                   │
-│                    :5173 / :3000                        │
-└────────────────────────┬────────────────────────────────┘
-                         │ HTTP + HttpOnly Cookie
-                         ▼
-┌─────────────────────────────────────────────────────────┐
-│              FastAPI Backend  :8000                     │
-│                                                         │
-│  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌─────────┐  │
-│  │ /auth    │ │ /waybills │ │/employees│ │  /ai    │  │
-│  └──────────┘ └───────────┘ └──────────┘ └─────────┘  │
-│  ┌────────────────────┐  ┌──────────────────────────┐  │
-│  │ /monitoring        │  │ SlowAPI + CORS Middleware │  │
-│  └────────────────────┘  └──────────────────────────┘  │
-└────────────┬────────────────────────┬───────────────────┘
-             │ PostgREST API          │ Gemini API
-             ▼                        ▼
-┌────────────────────┐    ┌──────────────────────┐
-│  Supabase          │    │  Google Gemini        │
-│  Self-Hosted       │    │  gemini-2.5-flash     │
-│  PostgreSQL 15     │    └──────────────────────┘
-│  GoTrue Auth       │
-│  PostgREST         │
-└────────────────────┘
+Разработка:
+Браузер :5173 (Vite dev) ── прокси /api ──► FastAPI :8000
+
+Продакшен:
+Браузер :8000 ──► FastAPI :8000 (API + статика из dist/)
+                    │
+                    ├── httpx ──► Supabase (PostgREST)
+                    ├── httpx ──► OpenRouter (LLM)
+                    ▼
+              SQLite (путевые листы, сотрудники, пользователи)
 ```
+
+Разделение данных по принципу MDM (Master Data Management): справочник транспортных средств ведётся централизованно в Supabase, а транзакционные документы (путевые листы) и штат создаются и хранятся локально в SQLite.
+
+Фронтенд обращается к API по относительным путям (`/api/...`). В режиме разработки Vite проксирует их в FastAPI, в продакшене FastAPI сам отдаёт собранную статику — единый origin в обоих случаях.
 
 ---
 
-### 1. Требования
+## Установка и запуск
 
+### Требования
+
+- Node.js 18+
 - Python 3.12+
-[![Python](https://img.shields.io/badge/Python-3.12-blue.svg)](https://python.org)
-[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-green.svg)](https://fastapi.tiangolo.com)
-[![Supabase](https://img.shields.io/badge/Supabase-Self--Hosted-3ecf8e.svg)](https://supabase.com)
+- Docker (опционально)
 
-### 2. Установка
+### 1. Backend (FastAPI)
 
 ```powershell
-# Создать виртуальное окружение
-py -m venv .venv
+cd backend
+
+# Виртуальное окружение
+python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 
-# Установить зависимости
+# Зависимости
 pip install -r requirements.txt
 ```
 
-### 3. Настройка `.env`
-
-Файл `backend/.env` уже создан. Убедитесь, что ключи корректны:
+Создайте файл `backend/.env` (см. `backend/.env.example`):
 
 ```env
-SUPABASE_URL=https://194-67-127-185.cloudvps.regruhosting.ru
-SUPABASE_ANON_KEY=<anon key из Supabase Dashboard>
-GEMINI_API_KEY=<ваш ключ Gemini>
+SUPABASE_URL=https://<адрес-supabase>
+SUPABASE_ANON_KEY=<anon-key>
+SUPABASE_SERVICE_EMAIL=<email-сервисной-уч-записи>
+SUPABASE_SERVICE_PASSWORD=<пароль>
+OPENROUTER_API_KEY=<ключ-OpenRouter>
+JWT_SECRET=<секрет-для-подписи-JWT-минимум-32-символа>
 APP_ENV=development
 BACKEND_PORT=8000
-FRONTEND_ORIGIN=http://localhost:5173,http://localhost:3000
-RATE_LIMIT_REQUESTS=60
+FRONTEND_ORIGIN=http://localhost:5173
 ```
 
-### 4. Миграция базы данных
-
-Перед первым запуском выполните SQL-миграцию:
-
-**Способ 1 — Browser Agent** (рекомендуется):
-
-1. Откройте `backend/migration_agent.html` в браузере
-2. Вставьте service_role key из Supabase Studio → API Settings
-3. Нажмите «Выполнить миграцию»
-
-**Способ 2 — Supabase SQL Editor**:
-
-1. Откройте Supabase Studio → Database → SQL Editor
-2. Скопируйте содержимое `backend/migrations/001_create_employees_and_waybills.sql`
-3. Нажмите Run (Ctrl+Enter)
-
-### 5. Запуск
+Запуск:
 
 ```powershell
-# Из папки backend
-uvicorn app.main:app --reload --port 8000
+cd backend
+.\run_server.ps1
 ```
 
-Swagger UI: **http://localhost:8000/docs**
+Swagger UI: http://localhost:8000/docs
 
-### 6. Запуск тестов
+### 2. Frontend (из корня проекта)
 
 ```powershell
-# Из папки backend
-py -m pytest tests/ -v
+npm install
+npm run dev
 ```
 
----
+Приложение откроется по адресу: http://localhost:5173
 
-## API Reference
+### 3. Docker (альтернативный запуск)
 
-### Аутентификация
+Backend поставляется с multi-stage `Dockerfile` (builder + runtime, non-root user, 3 uvicorn workers).
 
-| Метод  | Endpoint           | Описание                      |
-| ------ | ------------------ | ----------------------------- |
-| `POST` | `/api/auth/login`  | Вход (rate limit: 10/мин)     |
-| `POST` | `/api/auth/logout` | Выход, удаление cookie        |
-| `GET`  | `/api/auth/me`     | Профиль текущего пользователя |
+#### Только Backend
 
-**Аутентификация**: JWT Bearer token или HttpOnly cookie `sb_access_token`
+```powershell
+cd backend
+docker build -t cargoflow-backend .
+docker run -p 8000:8000 --env-file .env cargoflow-backend
+```
 
-### Путевые листы
+#### Full-stack (с собранным фронтом)
 
-| Метод    | Endpoint                    | Описание                                         |
-| -------- | --------------------------- | ------------------------------------------------ |
-| `GET`    | `/api/waybills`             | Список путевых листов (фильтр: `?status=В пути`) |
-| `GET`    | `/api/waybills/{id}`        | Путевой лист по ID                               |
-| `POST`   | `/api/waybills`             | Создать путевой лист                             |
-| `PATCH`  | `/api/waybills/{id}`        | Обновить путевой лист                            |
-| `PATCH`  | `/api/waybills/{id}/status` | Изменить статус                                  |
-| `DELETE` | `/api/waybills/{id}`        | Удалить путевой лист                             |
+```powershell
+# 1. Сборка фронтенда
+npm run build
 
-**Статусы**: `Ожидают` → `В пути` → `Доставлен` / `Отменён`
+# 2. Сборка Docker-образа
+cd backend
+docker build -t cargoflow-backend .
 
-### Сотрудники
+# 3. Запуск с монтированием статики
+docker run -p 8000:8000 --env-file .env -v "%cd%\..\dist:/app/dist" cargoflow-backend
+```
 
-| Метод    | Endpoint              | Описание                         |
-| -------- | --------------------- | -------------------------------- |
-| `GET`    | `/api/employees`      | Список активных сотрудников      |
-| `GET`    | `/api/employees/{id}` | Сотрудник по ID                  |
-| `POST`   | `/api/employees`      | Создать сотрудника               |
-| `PATCH`  | `/api/employees/{id}` | Обновить данные                  |
-| `DELETE` | `/api/employees/{id}` | Деактивировать (мягкое удаление) |
+Приложение: http://localhost:8000  
+Swagger UI: http://localhost:8000/docs
 
-### Мониторинг (телеметрия)
+### Учётные данные по умолчанию
 
-| Метод  | Endpoint                                   | Описание                    |
-| ------ | ------------------------------------------ | --------------------------- |
-| `GET`  | `/api/monitoring/vehicles`                 | Список ТС                   |
-| `GET`  | `/api/monitoring/vehicles/{id}/location`   | Текущая позиция GPS/ГЛОНАСС |
-| `GET`  | `/api/monitoring/vehicles/{id}/parameters` | Параметры CAN-шины          |
-| `GET`  | `/api/monitoring/vehicles/{id}/history`    | История телеметрии (30 мин) |
-| `POST` | `/api/monitoring/records`                  | История из Supabase RPC     |
-| `GET`  | `/api/monitoring/organizations`            | Организации                 |
-| `GET`  | `/api/monitoring/navigation-devices`       | Навигационные устройства    |
+| Поле | Значение |
+|------|----------|
+| Email | `test@ends.ru` |
+| Пароль | `fdp-swf-AdZ-RB7` |
 
-### ИИ-аналитика
+### Продакшен-сборка (без Docker)
 
-| Метод  | Endpoint          | Описание                             |
-| ------ | ----------------- | ------------------------------------ |
-| `POST` | `/api/ai/analyze` | Gemini-аудит рейса по путевому листу |
+```powershell
+npm run build                      # собирает dist/
+cd backend
+.\run_server.ps1                   # FastAPI раздаёт API + статику
+```
 
-### Служебные
-
-| Метод | Endpoint  | Описание     |
-| ----- | --------- | ------------ |
-| `GET` | `/health` | Health check |
-| `GET` | `/docs`   | Swagger UI   |
-| `GET` | `/redoc`  | ReDoc        |
-
----
-
-## Безопасность
-
-| Механизм           | Реализация                                           |
-| ------------------ | ---------------------------------------------------- |
-| Аутентификация     | Supabase JWT (HS256), проверка через `/auth/v1/user` |
-| Сессия             | HttpOnly cookie `sb_access_token`, SameSite=Lax      |
-| Авторизация данных | Row Level Security (RLS) на уровне PostgreSQL        |
-| Пароли             | bcrypt, cost factor 12 (`security.py`)               |
-| Rate Limiting      | SlowAPI: 60 req/min по IP, 10/min на `/login`        |
-| CORS               | Whitelist из `FRONTEND_ORIGIN` env var (не wildcard) |
-| Секреты            | Только через `.env`, нет хардкода в коде             |
+Приложение доступно на http://localhost:8000.
 
 ---
 
 ## Структура проекта
 
 ```
-backend/
-├── app/
-│   ├── api/              # API-роутеры (по модулям)
-│   │   ├── auth.py       # Аутентификация
-│   │   ├── waybills.py   # Путевые листы
-│   │   ├── employees.py  # Сотрудники
-│   │   ├── monitoring.py # Телеметрия и мониторинг
-│   │   ├── ai.py         # Gemini AI-аналитика
-│   │   ├── vehicles.py   # Транспортные средства
-│   │   └── health.py     # Health check
-│   ├── core/
-│   │   ├── config.py     # Pydantic Settings (env vars)
-│   │   └── security.py   # bcrypt + SlowAPI limiter
-│   ├── services/
-│   │   ├── supabase_service.py    # Repository: PostgREST API
-│   │   └── telemetry_simulator.py # GPS/ГЛОНАСС имитационная модель
-│   └── main.py           # FastAPI app + middleware
-├── migrations/
-│   └── 001_create_employees_and_waybills.sql
-├── tests/
-│   ├── conftest.py       # pytest fixtures
-│   ├── test_auth.py      # 8 тестов авторизации
-│   ├── test_waybills.py  # 9 тестов путевых листов
-│   └── test_monitoring.py # 10 тестов телеметрии
-├── .env                  # Секреты (не в git)
-├── .env.example          # Шаблон без секретов
-├── Dockerfile            # Multi-stage production build
-├── requirements.txt
-└── pytest.ini
+module/
+├── src/                        # Frontend (React 19 + TypeScript)
+│   ├── components/
+│   │   ├── CargoForm.tsx        # Форма путевого листа
+│   │   ├── MapControl.tsx       # Интерактивная карта (OpenLayers)
+│   │   ├── AnalyticsPanel.tsx   # Телеметрия и ИИ-аудит
+│   │   ├── PersonnelGrid.tsx    # Управление штатом
+│   │   └── PrintWaybillModal.tsx # Печать ЭПЛ в PDF
+│   ├── App.tsx                  # Главный компонент
+│   └── types.ts                 # TypeScript-интерфейсы
+│
+├── backend/
+│   ├── Dockerfile               # Multi-stage Docker-образ
+│   ├── app/
+│   │   ├── api/                 # FastAPI роутеры
+│   │   │   ├── auth.py          # Авторизация (JWT + HttpOnly cookie)
+│   │   │   ├── waybills.py      # CRUD путевых листов
+│   │   │   ├── employees.py     # CRUD сотрудников
+│   │   │   ├── vehicles.py      # ТС (Supabase)
+│   │   │   ├── monitoring.py    # GPS/ГЛОНАСС телеметрия
+│   │   │   └── ai.py            # ИИ-аналитика (OpenRouter)
+│   │   ├── core/
+│   │   │   ├── config.py        # Настройки (Pydantic Settings)
+│   │   │   ├── database.py      # SQLite + SQLAlchemy + seed-данные
+│   │   │   └── security.py      # bcrypt + rate limiting
+│   │   ├── models/
+│   │   │   └── models.py        # SQLAlchemy ORM
+│   │   ├── services/
+│   │   │   ├── local_service.py       # SQLite: путевые листы, сотрудники
+│   │   │   ├── supabase_service.py    # Supabase PostgREST: ТС, организации
+│   │   │   └── telemetry_simulator.py # Имитация навигационных пакетов
+│   │   └── main.py              # Точка входа FastAPI (+ StaticFiles)
+│   ├── tests/                   # Интеграционные тесты (pytest)
+│   └── requirements.txt
+│
+├── vite.config.ts              # Vite + прокси /api → FastAPI
+├── api.http                    # REST Client: ручное тестирование API
+└── docs/
+    └── er-diagr.png            # ER-диаграмма базы данных
 ```
 
 ---
 
-## Телеметрическая модель (Wialon IPS)
+## Основные функции
 
-Модуль `telemetry_simulator.py` реализует генератор навигационных пакетов, совместимый с протоколом **Wialon IPS 2.0**, применяемым в спутниковых системах мониторинга транспорта класса ГЛОНАСС/GPS.
-
-Алгоритм интерполяции позиции использует **формулу Хаверсина** для вычисления расстояний на сфере (WGS-84). Профиль скорости строится по синусоидальной модели, расход топлива — пропорционально скорости (0.35% ДУТ на км).
-
-Пример навигационного пакета:
-
-```json
-{
-  "vehicle_id": 4,
-  "state_number": "А123БВ777",
-  "timestamp": "2026-05-30T20:00:00Z",
-  "latitude": 55.8124,
-  "longitude": 38.4217,
-  "heading": 73.2,
-  "speed": 68.4,
-  "gps_satellites": 11,
-  "engine_on": true,
-  "fuel_level": 71.3
-}
-```
+- **Путевые листы** — создание, редактирование, смена статуса (Ожидают → В пути → Доставлен), печать в PDF
+- **Мониторинг** — отображение ТС на интерактивной карте (OpenLayers), обновление координат каждые 12 секунд
+- **Телеметрия** — скорость, уровень топлива, спутники GPS в реальном времени
+- **ИИ-аудит** — анализ рейса через OpenRouter (LLM): оценка рисков состояния водителя и ТС
+- **Штат** — картотека водителей и диспетчеров с номерами водительских удостоверений
+- **MDM-архитектура** — справочник ТС в Supabase, операционные данные в локальном SQLite

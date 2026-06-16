@@ -74,6 +74,4 @@ def get_settings() -> Settings:
     return Settings()
 
 
-print("ЗАГРУЖЕННЫЙ КЛЮЧ:", get_settings().openrouter_api_key)
-print("ИЩУ ТУТ:", _env_path)
 settings = get_settings()
