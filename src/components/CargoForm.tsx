@@ -117,6 +117,93 @@ export default function CargoForm({
   const [errorText, setErrorText] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [geocoding, setGeocoding] = useState(false);
+
+  // ─── Polyline decoder (OSRM returns encoded polyline geometry) ───
+  const decodePolyline = (encoded: string, precision = 5): [number, number][] => {
+    const factor = Math.pow(10, precision);
+    const result: [number, number][] = [];
+    let index = 0, lat = 0, lng = 0;
+
+    while (index < encoded.length) {
+      let shift = 0, result_val = 0, byte;
+      do { byte = encoded.charCodeAt(index++) - 63; result_val |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+      lat += (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
+
+      shift = 0; result_val = 0;
+      do { byte = encoded.charCodeAt(index++) - 63; result_val |= (byte & 0x1f) << shift; shift += 5; } while (byte >= 0x20);
+      lng += (result_val & 1) ? ~(result_val >> 1) : (result_val >> 1);
+
+      result.push([lat / factor, lng / factor]);
+    }
+    return result;
+  };
+
+  // ─── Geocoding: resolve city name → coordinates via Nominatim ───
+  const geocodeCity = async (cityName: string): Promise<[number, number] | null> => {
+    if (!cityName.trim()) return null;
+    try {
+      const query = encodeURIComponent(cityName.trim());
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${query}&format=json&limit=1&accept-language=ru`,
+        { headers: { "User-Agent": "CargoFlow/1.0" } }
+      );
+      const data = await res.json();
+      if (data.length > 0) {
+        return [parseFloat(data[0].lat), parseFloat(data[0].lon)];
+      }
+    } catch { /* network error — keep existing coords */ }
+    return null;
+  };
+
+  // ─── OSRM: get road route between two points ───
+  const fetchRoadRoute = async (
+    from: [number, number],
+    to: [number, number]
+  ): Promise<[number, number][] | null> => {
+    try {
+      // OSRM expects lon,lat (not lat,lon)
+      const url = `https://router.project-osrm.org/route/v1/driving/${from[1]},${from[0]};${to[1]},${to[0]}?overview=full&geometries=polyline`;
+      const res = await fetch(url);
+      const data = await res.json();
+      if (data.code === "Ok" && data.routes?.[0]?.geometry) {
+        const decoded = decodePolyline(data.routes[0].geometry, 5);
+        // Simplify: take every Nth point to keep ~40-80 points for performance
+        const step = Math.max(1, Math.floor(decoded.length / 60));
+        const simplified = decoded.filter((_, i) => i % step === 0 || i === decoded.length - 1);
+        return simplified.length >= 2 ? simplified : decoded;
+      }
+    } catch { /* OSRM unavailable — will fall back to straight line */ }
+    return null;
+  };
+
+  // Auto-route when cities change (with debounce)
+  useEffect(() => {
+    if (!fromCity.trim() || !toCity.trim()) return;
+
+    const timer = setTimeout(async () => {
+      setGeocoding(true);
+      // Step 1: Geocode both cities
+      const [fromCoord, toCoord] = await Promise.all([
+        geocodeCity(fromCity),
+        geocodeCity(toCity),
+      ]);
+      if (fromCoord && toCoord) {
+        // Step 2: Get road route via OSRM
+        const roadCoords = await fetchRoadRoute(fromCoord, toCoord);
+        if (roadCoords) {
+          setCoords(roadCoords);
+        } else {
+          // Fallback: straight line between geocoded points
+          setCoords([fromCoord, toCoord]);
+        }
+        setSelectedPreset("");
+      }
+      setGeocoding(false);
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [fromCity, toCity]);
 
   // Setup initial form state if editing
   useEffect(() => {
@@ -138,7 +225,6 @@ export default function CargoForm({
       setSelectedPreset(match ? match.name : "");
     } else {
       setSelectedPreset("");
-      // Default dates: today and a week from now
       const today = new Date().toISOString().split("T")[0];
       const weekLater = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
       setDateFrom(today);
@@ -146,7 +232,7 @@ export default function CargoForm({
     }
   }, [editingCargo]);
 
-  // Sync driver whenever assignedVehicleId changes (if vehicle has default registered driver_id)
+  // Sync driver whenever assignedVehicleId changes
   useEffect(() => {
     if (assignedVehicleId !== "" && !editingCargo) {
       const selectedVehicle = vehicles.find((v) => Number(v.id) === Number(assignedVehicleId));
@@ -156,14 +242,24 @@ export default function CargoForm({
     }
   }, [assignedVehicleId, vehicles, editingCargo]);
 
-  // Sync cities and auto path generators when preset is selected
-  const handlePresetChange = (presetName: string) => {
+  // Preset handler: also fetches road route for preset cities
+  const handlePresetChange = async (presetName: string) => {
     const r = PRESET_ROUTES.find((route) => route.name === presetName);
     if (r) {
-      setSelectedPreset(presetName)
+      setSelectedPreset(presetName);
       setFromCity(r.fromCity);
       setToCity(r.toCity);
+      // Immediately set preset coords, then upgrade to road route
       setCoords(r.coords as [number, number][]);
+      setGeocoding(true);
+      const roadCoords = await fetchRoadRoute(
+        r.coords[0] as [number, number],
+        r.coords[r.coords.length - 1] as [number, number]
+      );
+      if (roadCoords) {
+        setCoords(roadCoords);
+      }
+      setGeocoding(false);
     }
   };
 
@@ -276,7 +372,7 @@ export default function CargoForm({
               ))}
             </select>
             <p className="text-[10px] text-slate-500 mt-1.5 leading-relaxed">
-              Выбор шаблона мгновенно привяжет точки проезда по координатам и синхронизирует города выписки.
+              Шаблон мгновенно привяжет координаты маршрута. Вы также можете ввести любые города вручную — координаты определятся автоматически.
             </p>
           </div>
 
@@ -448,6 +544,7 @@ export default function CargoForm({
             <label className="text-xs font-semibold text-slate-400 block mb-1.5 flex items-center gap-1">
               <MapPin className="w-3.5 h-3.5 text-slate-400" />
               Конечные географические координаты ({coords.length} т.)
+              {geocoding && <span className="text-amber-500 ml-1 animate-pulse">⟳ определение...</span>}
             </label>
             <div className="w-full bg-slate-950 border border-slate-800 rounded-lg text-slate-400 text-[10px] px-3 py-2 font-mono truncate">
               {JSON.stringify(coords)}

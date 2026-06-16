@@ -31,7 +31,7 @@ export default function AnalyticsPanel({
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
-  const BASE_API_URL = "http://localhost:8000";
+  const BASE_API_URL = "";
   const currentLoc = selectedVehicleId ? liveLocations[selectedVehicleId] : null;
   const telemetryParams = (telemetry?.parameters || (telemetry as any)?.decoded_parameters || {}) as Record<string, number | string>;
   const normalizedHistory = Array.isArray(historyData)

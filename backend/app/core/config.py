@@ -54,6 +54,9 @@ class Settings(BaseSettings):
 
     rate_limit_requests: int = 60
 
+    cookie_secure: bool = False
+    cookie_samesite: str = "lax"
+
     model_config = SettingsConfigDict(
         env_file=_env_path,
         env_file_encoding="utf-8-sig",

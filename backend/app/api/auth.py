@@ -79,12 +79,13 @@ async def login(request: Request, payload: LoginRequest, response: Response) -> 
 
     access_token = data.get("access_token", "")
     if access_token:
+        from app.core.config import settings as app_settings
         response.set_cookie(
             key="sb_access_token",
             value=access_token,
             httponly=True,
-            samesite="lax",
-            secure=False,  # True в production (HTTPS)
+            samesite=app_settings.cookie_samesite,
+            secure=app_settings.cookie_secure,
             max_age=3600,
         )
     return data

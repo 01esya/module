@@ -33,16 +33,17 @@ LABEL maintainer="CargoFlow Team"
 LABEL description="Backend модуль формирования электронных путевых листов"
 LABEL version="1.0.0"
 
-# Не запускаем под root
-RUN groupadd -r cargoflow && useradd -r -g cargoflow cargoflow
+# Не запускаем под root, создаем рабочую директорию с нужными правами
+RUN groupadd -r cargoflow && useradd -r -g cargoflow cargoflow \
+    && mkdir -p /app && chown cargoflow:cargoflow /app
 
 WORKDIR /app
 
 # Копируем зависимости из builder-этапа
 COPY --from=builder /install/deps /usr/local
 
-# Копируем только исходный код приложения
-COPY app/ ./app/
+# Копируем только исходный код приложения (с правами cargoflow для записи SQLite)
+COPY --chown=cargoflow:cargoflow app/ ./app/
 
 # Переменные окружения
 ENV PYTHONDONTWRITEBYTECODE=1 \
