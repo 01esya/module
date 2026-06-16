@@ -200,9 +200,7 @@ module/
 │   └── requirements.txt
 │
 ├── vite.config.ts              # Vite + прокси /api → FastAPI
-├── api.http                    # REST Client: ручное тестирование API
-└── docs/
-    └── er-diagr.png            # ER-диаграмма базы данных
+└── api.http                    # REST Client: ручное тестирование API
 ```
 
 ---

@@ -66,6 +66,9 @@ app.include_router(monitoring.router)
 app.include_router(ai.router)
 
 _dist = Path(__file__).resolve().parents[2] / "dist"
+if not _dist.exists():
+    _dist = Path(__file__).resolve().parents[1] / "dist"
+
 if _dist.exists():
     app.mount("/", StaticFiles(directory=str(_dist), html=True), name="static")
 

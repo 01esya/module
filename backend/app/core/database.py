@@ -6,13 +6,19 @@
 Демо-данные загружаются один раз при пустой БД.
 """
 
+import os
 from pathlib import Path
 
 from sqlalchemy import create_engine, event
 from sqlalchemy.orm import sessionmaker
 
-# Путь к файлу БД — в корне backend/
-DB_PATH = Path(__file__).resolve().parent.parent.parent / "cargoflow.db"
+# Путь к файлу БД — в корне backend/ по умолчанию, либо из переменной окружения
+_db_env_path = os.getenv("SQLITE_DB_PATH")
+if _db_env_path:
+    DB_PATH = Path(_db_env_path)
+else:
+    DB_PATH = Path(__file__).resolve().parent.parent.parent / "cargoflow.db"
+
 DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 engine = create_engine(
