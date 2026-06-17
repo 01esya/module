@@ -307,6 +307,22 @@ export default function App() {
     return false;
   };
 
+  const handleDeleteWaybill = async (id: number): Promise<boolean> => {
+    if (!confirm("Вы уверены, что хотите удалить этот путевой лист из системы?")) return false;
+    try {
+      const res = await apiFetch(`/api/waybills/${id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setRefreshTrigger((prev) => prev + 1);
+        return true;
+      }
+    } catch (err) {
+      console.error("Delete waybill failed", err);
+    }
+    return false;
+  };
+
   // Reset database back to default seed helper
   const handleResetDB = async () => {
     if (!confirm("Внимание! Это полностью сбросит базу данных путевых листов и персонала до исходных образцов для демонстрации.")) return;
@@ -940,6 +956,14 @@ export default function App() {
                           >
                             <Edit className="w-3.5 h-3.5" />
                             <span>Правка</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteWaybill(cargo.id)}
+                            className="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                            title="Удалить путевой лист"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
