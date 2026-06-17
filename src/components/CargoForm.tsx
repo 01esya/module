@@ -284,6 +284,10 @@ export default function CargoForm({
       setErrorText("Дата прибытия не может быть раньше даты отправления");
       return;
     }
+    if (fromCity.trim().toLowerCase() === toCity.trim().toLowerCase()) {
+      setErrorText("Пункт отправления и пункт назначения не могут совпадать");
+      return;
+}
     if (coords.length === 0) {
       setErrorText("Список географических координат не может быть пустым");
       return;
