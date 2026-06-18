@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CargoFlow — Система управления грузоперевозками</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;800&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #0b0f19;
+            --card-bg: #131a2c;
+            --accent-yellow: #FFD600;
+            --text-main: #f8fafc;
+            --text-muted: #94a3b8;
+            --border-color: #1e293b;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            font-family: 'Inter', sans-serif;
+            line-height: 1.6;
+            padding: 40px 20px;
+        }
+
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+
+        header {
+            text-align: center;
+            margin-bottom: 60px;
+            position: relative;
+        }
+
+        header::before {
+            content: '';
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 80px;
+            height: 4px;
+            background-color: var(--accent-yellow);
+            border-radius: 2px;
+        }
+
+        .logo-title {
+            font-size: 2.5rem;
+            font-weight: 800;
+            letter-spacing: -0.05em;
+            text-transform: uppercase;
+            margin-bottom: 10px;
+        }
+
+        .logo-title span {
+            color: var(--accent-yellow);
+        }
+
+        .subtitle {
+            font-size: 1.1rem;
+            color: var(--text-muted);
+            max-width: 600px;
+            margin: 0 auto;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-cols: 1fr;
+            gap: 25px;
+            margin-bottom: 50px;
+        }
+
+        @media (min-width: 768px) {
+            .grid {
+                grid-template-cols: 1fr 1fr;
+            }
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 30px;
+            transition: transform 0.2s, border-color 0.2s;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            border-color: var(--accent-yellow);
+        }
+
+        .card h3 {
+            font-size: 1.25rem;
+            margin-bottom: 12px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .card h3::before {
+            content: "⚡";
+            color: var(--accent-yellow);
+        }
+
+        .card p {
+            color: var(--text-muted);
+            font-size: 0.95rem;
+        }
+
+        .section-title {
+            font-size: 1.5rem;
+            font-weight: 800;
+            margin-top: 50px;
+            margin-bottom: 25px;
+            border-left: 4px solid var(--accent-yellow);
+            padding-left: 15px;
+        }
+
+        .gallery-grid {
+            display: grid;
+            grid-template-cols: 1fr;
+            gap: 20px;
+            margin-bottom: 50px;
+        }
+
+        @media (min-width: 768px) {
+            .gallery-grid {
+                grid-template-cols: 1fr 1fr;
+            }
+        }
+
+        .gallery-card {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 15px;
+            text-align: center;
+            transition: border-color 0.2s;
+        }
+
+        .gallery-card:hover {
+            border-color: var(--accent-yellow);
+        }
+
+        .gallery-card h4 {
+            font-size: 0.85rem;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-muted);
+            margin-bottom: 10px;
+            font-weight: 600;
+        }
+
+        .gallery-card img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .erd-container {
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 20px;
+            text-align: center;
+            margin-bottom: 50px;
+        }
+
+        .erd-container img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+        }
+
+        .docs-links {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            margin-bottom: 50px;
+        }
+
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            background-color: var(--card-bg);
+            border: 1px solid var(--border-color);
+            color: var(--text-main);
+            text-decoration: none;
+            padding: 12px 24px;
+            border-radius: 10px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--accent-yellow);
+            color: #000;
+            border-color: var(--accent-yellow);
+        }
+
+        .btn-primary {
+            background-color: var(--accent-yellow);
+            color: #000;
+            border-color: var(--accent-yellow);
+        }
+
+        .btn-primary:hover {
+            background-color: #ffe042;
+        }
+
+        footer {
+            text-align: center;
+            margin-top: 80px;
+            padding-top: 30px;
+            border-top: 1px solid var(--border-color);
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            font-family: 'JetBrains Mono', monospace;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 class="logo-title">CargoFlow <span>Terminal</span></h1>
+            <p class="subtitle">Информационная система формирования электронных путевых листов с модулем спутникового мониторинга ТС и ИИ-аудитом безопасности рейсов</p>
+        </header>
+
+        <div class="docs-links">
+            <a href="https://github.com/01esya/module" class="btn btn-primary" target="_blank">💻 Репозиторий GitHub</a>
+            <a href="https://github.com/01esya/module/blob/develop/API.md" class="btn" target="_blank">📖 Документация REST API</a>
+            <a href="https://github.com/01esya/module/blob/develop/CHANGELOG.md" class="btn" target="_blank">⏳ История изменений</a>
+            <a href="https://github.com/01esya/module/wiki" class="btn" target="_blank">📚 Проектная Wiki</a>
+        </div>
+
+        <h2 class="section-title">Ключевой функционал системы</h2>
+        <div class="grid">
+            <div class="card">
+                <h3>Электронные путевые листы (ЭПЛ)</h3>
+                <p>Выписка и ведение путевых листов по форме Минтранса РФ № 4-П. Поддержка валидации, смены статусов рейса и вывод печатных версий документов в формат PDF.</p>
+            </div>
+            <div class="card">
+                <h3>Спутниковый GPS/ГЛОНАСС мониторинг</h3>
+                <p>Интеграция с навигационным оборудованием. Отображение транспортных средств на интерактивной ГИС-карте (OpenLayers) с автоматическим расчетом трасс OSRM.</p>
+            </div>
+            <div class="card">
+                <h3>ИИ-аудит рейсов и LLM-аналитика</h3>
+                <p>Проверка безопасности выполнения рейсов на базе искусственного интеллекта (через API OpenRouter). Оценка рисков перерасхода топлива и усталости водителя.</p>
+            </div>
+            <div class="card">
+                <h3>Отказоустойчивая архитектура (Fallback)</h3>
+                <p>Использование централизованных мастер-данных в облаке Supabase с автоматическим прозрачным переключением на локальный SQLite кэш при потере интернет-соединения.</p>
+            </div>
+        </div>
+
+        <h2 class="section-title">Интерфейс системы (Скриншоты)</h2>
+        <div class="gallery-grid">
+            <div class="gallery-card">
+                <h4>1. Авторизация диспетчера</h4>
+                <img src="screenshot_login.png" alt="Форма авторизации">
+            </div>
+            <div class="gallery-card">
+                <h4>2. Панель мониторинга (Dashboard)</h4>
+                <img src="screenshot_dashboard.png" alt="Панель управления">
+            </div>
+            <div class="gallery-card">
+                <h4>3. Полноэкранный радар ГИС</h4>
+                <img src="screenshot_map.png" alt="ГИС Карта">
+            </div>
+            <div class="gallery-card">
+                <h4>4. Телеметрия и ИИ-Аналитика</h4>
+                <img src="screenshot_telemetry.png" alt="Аналитика рейса">
+            </div>
+            <div class="gallery-card">
+                <h4>5. Реестр путевых листов (CRUD)</h4>
+                <img src="screenshot_waybills.png" alt="Реестр путевых листов">
+            </div>
+            <div class="gallery-card">
+                <h4>6. Картотека сотрудников компании</h4>
+                <img src="screenshot_personnel.png" alt="Штат сотрудников">
+            </div>
+        </div>
+
+        <h2 class="section-title">Физическая модель базы данных (ERD)</h2>
+        <div class="erd-container">
+            <img src="er-diagr.png" alt="ER-диаграмма СУБД CargoFlow">
+        </div>
+
+        <footer>
+            <p>Разработано в рамках выпускной квалификационной работы (диплома) • 2026</p>
+        </footer>
+    </div>
+</body>
+</html>
