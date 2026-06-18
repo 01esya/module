@@ -24,11 +24,33 @@ export interface CargoLoad {
   driver_id?: string | null;
 }
 
+export interface Waybill {
+  id: number;
+  organization_id: number;
+  cargo_type: string;
+  weight: number;
+  customer: string;
+  carrier: string;
+  from_city: string;
+  to_city: string;
+  route_coords: [number, number][];
+  date_from: string;
+  date_to: string;
+  status: string;
+  vehicle_id: number | null;
+  driver_id: number | null;
+  vehicle?: { id: number; state_number: string; number?: string } | null;
+  driver?: { id: number; full_name: string; role: string; phone?: string } | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
 export interface Employee {
-  id: string;
-  name: string;
-  role: string;
-  phone: string;
+  id: string | number;
+  name?: string;
+  full_name?: string;
+  role?: string;
+  phone?: string;
 }
 
 export interface User {

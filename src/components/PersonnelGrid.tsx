@@ -4,8 +4,7 @@ import { User, Phone, Shield, Trash2, Plus, UserPlus, FileText, CheckCircle } fr
 
 interface PersonnelGridProps {
   employees: Employee[];
-  onCreate: (name: string, role: string, phone: string) => Promise<boolean>;
-  onDelete: (id: string) => Promise<boolean>;
+  onCreate: (name: string, role: string, phone: string, licenseNumber?: string, licenseClass?: string) => Promise<boolean>;  onDelete: (id: string | number) => Promise<boolean>;
 }
 
 export default function PersonnelGrid({
@@ -17,6 +16,8 @@ export default function PersonnelGrid({
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [phone, setPhone] = useState("");
+  const [licenseNumber, setLicenseNumber] = useState(""); 
+  const [licenseClass, setLicenseClass] = useState("B");
   
   const [loading, setLoading] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -37,15 +38,18 @@ export default function PersonnelGrid({
       setErrorText("Номер телефона должен содержать минимум 10 цифр");
       return;
     }
+    const isDriver = role.toLowerCase().includes("водитель");
 
     setLoading(true);
-    const success = await onCreate(name, role, phone);
+    const success = await onCreate(name, role, phone, isDriver ? licenseNumber : undefined, isDriver ? licenseClass : undefined);
     setLoading(false);
 
     if (success) {
       setName("");
       setRole("");
       setPhone("");
+      setLicenseNumber("");
+      setLicenseClass("B");
       setShowAddForm(false);
     } else {
       setErrorText("Локальная ошибка валидации номера телефона в РФ (+7)");
@@ -120,6 +124,34 @@ export default function PersonnelGrid({
                 />
               </div>
             </div>
+            {role.toLowerCase().includes("водитель") && (
+              <div className="grid grid-cols-2 gap-3 border-t border-slate-800 pt-3">
+                <div>
+                  <label className="text-slate-400 block mb-1">Номер ВУ</label>
+                  <input
+                    type="text"
+                    placeholder="77 АА 123456"
+                    value={licenseNumber}
+                    onChange={(e) => setLicenseNumber(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg text-slate-200 px-3 py-2 focus:outline-none focus:border-amber-500 font-mono"
+                  />
+                </div>
+                <div>
+                  <label className="text-slate-400 block mb-1">Категория ВУ</label>
+                  <select
+                    value={licenseClass}
+                    onChange={(e) => setLicenseClass(e.target.value)}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-lg text-slate-200 px-3 py-2 focus:outline-none focus:border-amber-500"
+                  >
+                    <option value="B">B</option>
+                    <option value="C">C</option>
+                    <option value="CE">CE</option>
+                    <option value="D">D</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
           </div>
 
           <div className="flex justify-end gap-2 pt-2 border-t border-slate-800">
@@ -151,7 +183,7 @@ export default function PersonnelGrid({
               </div>
               <div className="min-w-0">
                 <h3 className="text-xs font-bold text-slate-100 tracking-tight text-ellipsis overflow-hidden truncate">
-                  {emp.name}
+                  {emp.name || emp.full_name || "Сотрудник без имени"}
                 </h3>
                 <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1">
                   <Shield className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
@@ -161,6 +193,13 @@ export default function PersonnelGrid({
                   <Phone className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
                   <span>{emp.phone}</span>
                 </p>
+                {emp.license_number && (
+                  <p className="text-[11px] text-slate-400 mt-1 flex items-center gap-1 font-mono">
+                    <FileText className="w-3.5 h-3.5 text-slate-500 flex-shrink-0" />
+                    <span>ВУ {emp.license_number}{emp.license_class ? ` · ${emp.license_class}` : ""}</span>
+                  </p>
+                )}
+
               </div>
             </div>
 

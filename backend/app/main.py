@@ -1,29 +1,77 @@
+"""
+Точка входа серверного приложения CargoFlow Backend.
+
+Инициализирует FastAPI-приложение, подключает middleware (CORS, Rate Limiting)
+и регистрирует все API-роутеры модулей.
+"""
+
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 
-from app.api import auth, health, monitoring, vehicles
+from app.api import ai, auth, employees, health, monitoring, vehicles, waybills
 from app.core.config import settings
+from app.core.security import limiter
+
+from pathlib import Path
+from fastapi.staticfiles import StaticFiles
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    from app.core.database import init_db
+    init_db()
+    print(f"[CargoFlow] Starting (env={settings.app_env})")
+    yield
+    print("[CargoFlow] Shutting down")
+
 
 app = FastAPI(
-    title="CargoFlow Backend",
-    version="0.1.0",
-    description="FastAPI backend for CargoFlow with Supabase integration.",
+    title="CargoFlow Backend API",
+    version="1.0.0",
+    description=(
+        "Backend модуль формирования электронных путевых листов "
+        "с интеграцией со спутниковой системой мониторинга транспорта."
+    ),
+    lifespan=lifespan,
+    docs_url="/docs",
+    redoc_url="/redoc",
 )
 
+# ─── Middleware ────────────────────────────────────────────────────
+
+# Rate limiting (60 запросов/мин по IP)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS — только разрешённые origins из .env (не wildcard)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.frontend_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization", "Cookie"],
 )
 
-app.include_router(auth.router)
+# ─── Routers ──────────────────────────────────────────────────────
+
 app.include_router(health.router)
+app.include_router(auth.router)
 app.include_router(vehicles.router)
+app.include_router(waybills.router)
+app.include_router(employees.router)
 app.include_router(monitoring.router)
+app.include_router(ai.router)
+
+_dist = Path(__file__).resolve().parents[2] / "dist"
+if not _dist.exists():
+    _dist = Path(__file__).resolve().parents[1] / "dist"
+
+if _dist.exists():
+    app.mount("/", StaticFiles(directory=str(_dist), html=True), name="static")
 
 
-@app.get("/", tags=["meta"])
-def root() -> dict[str, str]:
-    return {"message": "CargoFlow FastAPI backend is running"}
+
+

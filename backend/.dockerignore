@@ -1,0 +1,44 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+*.coverage
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker
+Dockerfile
+.dockerignore
+
+# Secrets — никогда не в образ
+.env
+.env.*
+*.pem
+*.key
+
+# Migrations (выполняются вручную через Supabase Dashboard)
+migrations/
+
+# Scratch / dev tools
+run_migration.ps1
+migration_agent.html

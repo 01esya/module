@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from "react";
-import { Vehicle, CargoLoad, LiveLocation, User, Employee } from "./types";
+import { Vehicle, Waybill, LiveLocation, User, Employee } from "./types";
 import MapControl from "./components/MapControl";
 import AnalyticsPanel from "./components/AnalyticsPanel";
 import CargoForm from "./components/CargoForm";
@@ -14,8 +14,10 @@ import {
 const IN_TRANSIT_STATUS = "В пути";
 const DELIVERED_STATUS = "Доставлен";
 
-const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) =>
-  fetch(input, { credentials: "include", ...init });
+const apiFetch = (input: RequestInfo | URL, init: RequestInit = {}) => {
+  return fetch(input, { credentials: "include", ...init });
+};
+
 
 function sameVehicleId(left: number | string | null | undefined, right: number | string | null | undefined) {
   if (left === null || left === undefined || right === null || right === undefined) return false;
@@ -26,7 +28,7 @@ function findVehicleById(vehicles: Vehicle[], vehicleId: number | string | null 
   return vehicles.find((vehicle) => sameVehicleId(vehicle.id, vehicleId));
 }
 
-function hasValidActiveVehicle(cargo: CargoLoad, vehicles: Vehicle[]) {
+function hasValidActiveVehicle(cargo: Waybill, vehicles: Vehicle[]) {
   return cargo.status === IN_TRANSIT_STATUS && Boolean(findVehicleById(vehicles, cargo.vehicle_id));
 }
 
@@ -52,7 +54,7 @@ export default function App() {
 
   // Core application lists from fullstack endpoints
   const [vehicles, setVehicles] = useState<Vehicle[]>([]);
-  const [cargoLoads, setCargoLoads] = useState<CargoLoad[]>([]);
+  const [waybills, setWaybills] = useState<Waybill[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [liveLocations, setLiveLocations] = useState<Record<number, LiveLocation>>({});
   const [isDemoMode, setIsDemoMode] = useState(false);
@@ -68,12 +70,13 @@ export default function App() {
   // Interaction handlers
   const [selectedVehicleId, setSelectedVehicleId] = useState<number | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
-  const [editingCargo, setEditingCargo] = useState<CargoLoad | null>(null);
-  const [printWaybillCargo, setPrintWaybillCargo] = useState<CargoLoad | null>(null);
+  const [editingWaybill, setEditingWaybill] = useState<Waybill | null>(null);
+  const [printWaybillTarget, setPrintWaybillTarget] = useState<Waybill | null>(null);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
-  const validActiveCargoLoads = useMemo(
-    () => cargoLoads.filter((cargo) => hasValidActiveVehicle(cargo, vehicles)),
-    [cargoLoads, vehicles]
+  const [loadingStatusId, setLoadingStatusId] = useState<string | null>(null)
+  const validActiveWaybills = useMemo(
+    () => waybills.filter((cargo) => hasValidActiveVehicle(cargo, vehicles)),
+    [waybills, vehicles]
   );
 
   // Simulated live clocks
@@ -127,10 +130,10 @@ export default function App() {
         }
 
         const [cargRes, empRes] = await Promise.all([
-          apiFetch("/api/loads"),
+          apiFetch("/api/waybills"),
           apiFetch("/api/employees")
         ]);
-        if (cargRes.ok) setCargoLoads(await cargRes.json());
+        if (cargRes.ok) setWaybills(await cargRes.json());
         if (empRes.ok) setEmployees(await empRes.json());
       } catch (err) {
         console.error("Failed to load backend metrics", err);
@@ -210,10 +213,10 @@ export default function App() {
   };
 
   // Cargo Actions helpers
-  const handleSaveCargo = async (payload: Omit<CargoLoad, "id" | "status">): Promise<boolean> => {
+  const handleSaveCargo = async (payload: any): Promise<boolean> => {
     try {
-      const url = editingCargo ? `/api/loads/${editingCargo.id}` : "/api/loads";
-      const method = editingCargo ? "PATCH" : "POST";
+      const url = editingWaybill ? `/api/waybills/${editingWaybill.id}` : "/api/waybills";
+      const method = editingWaybill ? "PATCH" : "POST";
 
       const res = await apiFetch(url, {
         method,
@@ -225,7 +228,7 @@ export default function App() {
 
       if (res.ok) {
         setRefreshTrigger((prev) => prev + 1);
-        setEditingCargo(null);
+        setEditingWaybill(null);
         return true;
       }
     } catch (err) {
@@ -234,9 +237,11 @@ export default function App() {
     return false;
   };
 
-  const handleUpdateCargoStatus = async (cargoId: string, status: string) => {
+  const handleUpdateCargoStatus = async (waybillId: string, status: string) => {
+    if (loadingStatusId) return;
+    setLoadingStatusId(waybillId);
     try {
-      const res = await apiFetch(`/api/loads/${cargoId}/status`, {
+      const res = await apiFetch(`/api/waybills/${waybillId}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json"
@@ -249,285 +254,31 @@ export default function App() {
       }
     } catch (err) {
       console.error("Update status waybill failed", err);
+    } finally {
+      setLoadingStatusId(null);
     }
   };
 
-  const handlePrintWaybill = (cargo: CargoLoad) => {
-    setPrintWaybillCargo(cargo);
-  };
-
-  const __deprecated_print = (cargo: CargoLoad) => {
-    const vehicle = findVehicleById(vehicles, cargo.vehicle_id) || null;
-    
-    // Create iframe securely to render print layout without bloating current DOM
-    const iframe = document.createElement("iframe");
-    iframe.style.position = "absolute";
-    iframe.style.width = "0px";
-    iframe.style.height = "0px";
-    iframe.style.border = "none";
-    document.body.appendChild(iframe);
-
-    const doc = iframe.contentWindow?.document;
-    if (!doc) return;
-
-    const htmlContent = `
-      <html>
-        <head>
-          <title>Путевой лист № ПЛ-${cargo.id}</title>
-          <style>
-            @media print {
-              @page { size: A4 portrait; margin: 15mm; }
-              body { margin: 0; background-color: #fff; color: #000; }
-            }
-            body {
-              font-family: Arial, "Helvetica Neue", Helvetica, sans-serif;
-              color: #000;
-              background-color: #fff;
-              font-size: 11px;
-              line-height: 1.4;
-              margin: 20px;
-            }
-            .border-box {
-              border: 1px solid #1e293b;
-              padding: 12px;
-              margin-bottom: 12px;
-              border-radius: 4px;
-            }
-            .header-info {
-              display: flex;
-              justify-content: space-between;
-              border-bottom: 2px solid #000;
-              padding-bottom: 10px;
-              margin-bottom: 15px;
-            }
-            .org-stamp {
-              border: 2px solid #000;
-              padding: 6px 10px;
-              text-align: center;
-              font-weight: bold;
-              font-size: 10px;
-              border-radius: 3px;
-              max-width: 250px;
-            }
-            .document-title {
-              text-align: center;
-              margin: 20px 0;
-            }
-            .document-title h1 {
-              font-size: 16px;
-              margin: 0 0 4px 0;
-              text-transform: uppercase;
-              font-weight: bold;
-              letter-spacing: 0.5px;
-            }
-            .document-title p {
-              margin: 0;
-              font-size: 11px;
-              color: #333;
-            }
-            .section-title {
-              font-size: 12px;
-              font-weight: bold;
-              border-bottom: 1px solid #000;
-              padding-bottom: 2px;
-              margin: 15px 0 8px 0;
-              text-transform: uppercase;
-              color: #111;
-            }
-            .field-row {
-              display: flex;
-              margin-bottom: 5px;
-              border-bottom: 1px dotted #ccc;
-              padding-bottom: 2px;
-            }
-            .field-label {
-              width: 180px;
-              font-weight: bold;
-              color: #333;
-            }
-            .field-value {
-              flex: 1;
-              color: #000;
-            }
-            .table-sheet {
-              width: 100%;
-              border-collapse: collapse;
-              margin: 15px 0;
-            }
-            .table-sheet th, .table-sheet td {
-              border: 1px solid #000;
-              padding: 5px 8px;
-              text-align: left;
-            }
-            .table-sheet th {
-              background-color: #f1f5f9;
-              font-size: 10px;
-              text-transform: uppercase;
-              font-weight: bold;
-            }
-            .signatures-row {
-              margin-top: 35px;
-              display: flex;
-              justify-content: space-between;
-            }
-            .signature-block {
-              width: 30%;
-              text-align: center;
-            }
-            .signature-line {
-              border-top: 1px solid #000;
-              margin-top: 25px;
-              font-size: 9px;
-              color: #444;
-            }
-            .official-footer {
-              text-align: center;
-              margin-top: 40px;
-              font-size: 9px;
-              color: #666;
-              border-top: 1px solid #eee;
-              padding-top: 10px;
-            }
-          </style>
-        </head>
-        <body>
-          <div class="header-info">
-            <div>
-              <strong>Информационная система КАРГОФЛОУ</strong><br/>
-              Выгрузка путевых листов в формате PDF/A
-            </div>
-            <div class="org-stamp">
-              ООО "КАРГОФЛОУ ТРАНС"<br/>
-              Лицензия на автоперевозки № С-039459<br/>
-              Действительна до 2030 г.
-            </div>
-          </div>
-
-          <div class="document-title">
-            <h1>ПУТЕВОЙ ЛИСТ ГРУЗОВОГО АВТОМОБИЛЯ</h1>
-            <p>Серия КФ-ЭПЛ • Регистрационный номер № <strong>ПЛ-${cargo.id}</strong></p>
-            <p style="margin-top: 3px; font-weight: bold;">Период действия: с ${cargo.date_from} по ${cargo.date_to}</p>
-          </div>
-
-          <div class="section-title">1. Реквизиты юридического лица и заказчика</div>
-          <div class="border-box">
-            <div class="field-row">
-              <span class="field-label">Организация-перевозчик:</span>
-              <span class="field-value">${cargo.carrier || 'ООО "КАРГОФЛОУ ТРАНС"'} (ИНН 7705439520)</span>
-            </div>
-            <div class="field-row">
-              <span class="field-label">Заказчик (Отправитель):</span>
-              <span class="field-value">${cargo.customer}</span>
-            </div>
-            <div class="field-row">
-              <span class="field-label">Пункт погрузки груза:</span>
-              <span class="field-value">г. ${cargo.from_city} (Центральный Склад)</span>
-            </div>
-            <div class="field-row">
-              <span class="field-label">Пункт разгрузки груза:</span>
-              <span class="field-value">г. ${cargo.to_city} (Адрес указан в ТТН)</span>
-            </div>
-          </div>
-
-          <div class="section-title">2. Сведения о транспортном средстве</div>
-          <div class="border-box">
-            <div class="field-row">
-              <span class="field-label">Марка/Модель автоцистерны:</span>
-              <span class="field-value">${vehicle ? vehicle.model : "Не назначено"}</span>
-            </div>
-            <div class="field-row">
-              <span class="field-label">Государственный рег. знак:</span>
-              <span class="field-value" style="font-family: monospace; font-weight: bold;">${vehicle ? vehicle.state_number : "Не назначено"}</span>
-            </div>
-            <div class="field-row">
-              <span class="field-label">Показания одометра (Выезд):</span>
-              <span class="field-value">143,290 км</span>
-            </div>
-            <div class="field-row">
-              <span class="field-label">Предрейсовый контроль ТС:</span>
-              <span class="field-value">Выпуск разрешен. ТС полностью исправно.</span>
-            </div>
-          </div>
-
-          <div class="section-title">3. Сведения о грузе и водителе</div>
-          <table class="table-sheet">
-            <thead>
-              <tr>
-                <th>Наименование груза</th>
-                <th>Вес брутто (кг)</th>
-                <th>Статус перевозки</th>
-                <th>Условия транспортировки</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr>
-                <td><strong>${cargo.cargo_type}</strong></td>
-                <td><strong>${cargo.weight.toLocaleString()}</strong></td>
-                <td>${cargo.status}</td>
-                <td>Стандартный температурный режим</td>
-              </tr>
-            </tbody>
-          </table>
-
-          <div class="border-box" style="margin-top: 10px;">
-            <div class="field-row">
-              <span class="field-label">Водитель-экспедитор:</span>
-              <span class="field-value">Штатный водитель-экспедитор группы КАРГОФЛОУ</span>
-            </div>
-            <div class="field-row">
-              <span class="field-label">Предрейсовый медосмотр:</span>
-              <span class="field-value">Пройден. Медработник: Сидорова А.М. Допущен к рейсу.</span>
-            </div>
-          </div>
-
-          <div class="section-title">4. Исполнение и подписи сторон</div>
-          <p style="font-size: 10px; color: #333; margin-bottom: 25px;">
-            Выезд автомобиля разрешен. Время выезда, возвращения и показания приборов фиксируются в автоматическом журнале телеметрии GPS/ГЛОНАСС.
-          </p>
-
-          <div class="signatures-row">
-            <div class="signature-block">
-              <div class="signature-line">Диспетчер службы логистики</div>
-            </div>
-            <div class="signature-block">
-              <div class="signature-line">Выпустил механик КТП</div>
-            </div>
-            <div class="signature-block">
-              <div class="signature-line">Водитель-экспедитор принял</div>
-            </div>
-          </div>
-
-          <div class="official-footer">
-            Электронный документ № ПЛ-${cargo.id}. Сгенерирован автоматически логистической системой КАРГОФЛОУ. <br/>
-            Заверен усиленной ЭЦП ООО "КАРГОФЛОУ ТРАНС". Дата генерации: ${new Date().toLocaleDateString("ru-RU")}
-          </div>
-
-          <script>
-            window.onload = function() {
-              window.print();
-              setTimeout(function() {
-                window.frameElement.parentNode.removeChild(window.frameElement);
-              }, 1000);
-            };
-          </script>
-        </body>
-      </html>
-    `;
-
-    doc.open();
-    doc.write(htmlContent);
-    doc.close();
+  const handlePrintWaybill = (cargo: Waybill) => {
+    setPrintWaybillTarget(cargo);
   };
 
   // Personnel Actions helpers
-  const handleCreateEmployee = async (name: string, role: string, phone: string): Promise<boolean> => {
+  const handleCreateEmployee = async (full_name: string, role: string, phone: string, licenseNumber?: string, licenseClass?: string): Promise<boolean> => {
     try {
       const res = await apiFetch("/api/employees", {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ name, role, phone })
+        body: JSON.stringify({
+          full_name: full_name,
+          role,
+          phone,
+          ...(licenseNumber ? { license_number: licenseNumber } : {}),
+          ...(licenseClass ? { license_class: licenseClass } : {}),
+        })
+
       });
 
       if (res.ok) {
@@ -540,7 +291,7 @@ export default function App() {
     return false;
   };
 
-  const handleDeleteEmployee = async (id: string): Promise<boolean> => {
+  const handleDeleteEmployee = async (id: string | number): Promise<boolean> => {
     if (!confirm("Вы уверены, что хотите удалить сотрудника из штата компании?")) return false;
     try {
       const res = await apiFetch(`/api/employees/${id}`, {
@@ -552,6 +303,22 @@ export default function App() {
       }
     } catch (err) {
       console.error("Delete employee failed", err);
+    }
+    return false;
+  };
+
+  const handleDeleteWaybill = async (id: number): Promise<boolean> => {
+    if (!confirm("Вы уверены, что хотите удалить этот путевой лист из системы?")) return false;
+    try {
+      const res = await apiFetch(`/api/waybills/${id}`, {
+        method: "DELETE"
+      });
+      if (res.ok) {
+        setRefreshTrigger((prev) => prev + 1);
+        return true;
+      }
+    } catch (err) {
+      console.error("Delete waybill failed", err);
     }
     return false;
   };
@@ -573,9 +340,9 @@ export default function App() {
   };
 
   // Derived Waybills Counters
-  const pendingWaybills = cargoLoads.filter((c) => c.status === "Ожидают").length;
-  const activeWaybills = cargoLoads.filter((c) => c.status === "В пути").length;
-  const deliveredWaybills = cargoLoads.filter((c) => c.status === "Доставлен").length;
+  const pendingWaybills = waybills.filter((c) => c.status === "Ожидают").length;
+  const activeWaybills = waybills.filter((c) => c.status === "В пути").length;
+  const deliveredWaybills = waybills.filter((c) => c.status === "Доставлен").length;
 
   // Telemetry cautions counters
   const alertFeed: string[] = [];
@@ -848,7 +615,7 @@ export default function App() {
                 <div className="bg-white border border-slate-200 p-4 rounded-xl shadow-xs transition-transform hover:shadow-xs">
                   <span className="text-slate-400 text-[10px] uppercase font-black tracking-widest block">Путевые листы всего</span>
                   <span className="text-3xl font-black text-slate-900 mt-1 block font-mono">
-                    {cargoLoads.length}
+                    {waybills.length}
                   </span>
                   <span className="text-[10px] text-slate-500 flex items-center gap-1.5 mt-1">
                     <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full inline-block"></span>
@@ -899,7 +666,7 @@ export default function App() {
                     </div>
                     <MapControl
                       vehicles={vehicles}
-                      cargoLoads={validActiveCargoLoads}
+                      waybills={validActiveWaybills}
                       selectedVehicleId={selectedVehicleId}
                       onSelectVehicle={(id) => {
                         setSelectedVehicleId(id);
@@ -922,7 +689,7 @@ export default function App() {
                     </div>
 
                     <div className="space-y-2">
-                      {cargoLoads.filter(c => c.status !== DELIVERED_STATUS).map((cargo) => {
+                      {waybills.filter(c => c.status !== DELIVERED_STATUS).map((cargo) => {
                         const vehicle = findVehicleById(vehicles, cargo.vehicle_id) || null;
                         const isInvalidActiveCargo = cargo.status === IN_TRANSIT_STATUS && !vehicle;
                         const loc = vehicle ? liveLocations[Number(vehicle.id)] : null;
@@ -931,7 +698,7 @@ export default function App() {
                           <div key={cargo.id} className="bg-slate-50/60 border border-slate-200 p-3 rounded-xl flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-xs hover:bg-slate-50 transition-colors">
                             <div>
                               <div className="flex items-center gap-2">
-                                <span className="font-extrabold text-slate-900">{cargo.cargo_type}</span>
+                                <span className="font-extrabold text-slate-900">{cargo.from_city}</span>
                                 <span className="text-slate-400 font-mono text-[9px]">ID: {cargo.id}</span>
                                 <span className={`px-2 py-0.5 rounded text-[9px] font-black uppercase tracking-wide ${
                                   isInvalidActiveCargo
@@ -1005,7 +772,7 @@ export default function App() {
                                 <div className="flex justify-between text-xs font-mono">
                                   <span className="text-slate-500">ЗАКАЗ НА РЕЙС:</span>
                                   <span className="text-white truncate max-w-[130px] font-sans">
-                                    {validActiveCargoLoads.find(c => sameVehicleId(c.vehicle_id, veh.id))?.cargo_type || "Свободен"}
+                                    {validActiveWaybills.find(c => sameVehicleId(c.vehicle_id, veh.id))?.waybill_number || "Свободен"}
                                   </span>
                                 </div>
                                 <div className="flex justify-between text-xs font-mono">
@@ -1075,7 +842,7 @@ export default function App() {
 
                 <button
                   onClick={() => {
-                    setEditingCargo(null);
+                    setEditingWaybill(null);
                     setIsFormOpen(true);
                   }}
                   className="bg-[#FFD600] hover:bg-[#ffe042] text-black text-[11px] font-black uppercase tracking-wider h-10 px-5 rounded-lg flex items-center gap-1.5 transition-all shadow-md shadow-[#FFD600]/10 select-none cursor-pointer"
@@ -1087,7 +854,7 @@ export default function App() {
 
               {/* Waybills Grid */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-                {cargoLoads.map((cargo) => {
+                {waybills.map((cargo) => {
                   const vehicle = findVehicleById(vehicles, cargo.vehicle_id) || null;
                   const isInvalidActiveCargo = cargo.status === IN_TRANSIT_STATUS && !vehicle;
 
@@ -1122,7 +889,7 @@ export default function App() {
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Вес брутто:</span>
-                            <span className="font-mono text-slate-900 font-bold">{cargo.weight.toLocaleString()} кг</span>
+                            <span className="font-mono text-slate-900 font-bold">{(cargo.weight ?? 0).toLocaleString()} кг</span>
                           </div>
                           <div className="flex justify-between">
                             <span className="text-slate-400 uppercase text-[9px] font-black tracking-wider">Заказчик:</span>
@@ -1159,8 +926,9 @@ export default function App() {
                           <select
                             value={cargo.status}
                             onChange={(e) => handleUpdateCargoStatus(cargo.id, e.target.value)}
-                            className="bg-slate-50 border border-slate-200 text-slate-800 font-black px-2 py-1 rounded text-[10px] cursor-pointer"
-                          >
+                            disabled={loadingStatusId === cargo.id}
+                            className={`bg-slate-50 border border-slate-200 text-slate-800 font-black px-2 py-1 rounded text-[10px] cursor-pointer ${loadingStatusId === cargo.id ? "opacity-50 cursor-wait" : ""}`}                          
+                                                          >
                             <option value="Ожидают">Ожидают</option>
                             <option value="В пути">В пути</option>
                             <option value="Доставлен">Доставлен</option>
@@ -1180,7 +948,7 @@ export default function App() {
 
                           <button
                             onClick={() => {
-                              setEditingCargo(cargo);
+                              setEditingWaybill(cargo);
                               setIsFormOpen(true);
                             }}
                             className="text-slate-800 hover:text-black bg-[#FFD600] p-1.5 px-3 rounded-lg transition-all flex items-center gap-1 cursor-pointer font-black text-[10px] uppercase tracking-wider"
@@ -1188,6 +956,14 @@ export default function App() {
                           >
                             <Edit className="w-3.5 h-3.5" />
                             <span>Правка</span>
+                          </button>
+
+                          <button
+                            onClick={() => handleDeleteWaybill(cargo.id)}
+                            className="text-rose-500 hover:text-rose-400 hover:bg-rose-500/10 p-1.5 rounded-lg transition-all cursor-pointer flex items-center justify-center"
+                            title="Удалить путевой лист"
+                          >
+                            <Trash className="w-3.5 h-3.5" />
                           </button>
                         </div>
                       </div>
@@ -1202,10 +978,10 @@ export default function App() {
                   vehicles={vehicles}
                   employees={employees}
                   onSave={handleSaveCargo}
-                  editingCargo={editingCargo}
+                  editingCargo={editingWaybill}
                   onClose={() => {
                     setIsFormOpen(false);
-                    setEditingCargo(null);
+                    setEditingWaybill(null);
                   }}
                 />
               )}
@@ -1222,7 +998,7 @@ export default function App() {
                 </div>
                 <MapControl
                   vehicles={vehicles}
-                  cargoLoads={validActiveCargoLoads}
+                  waybills={validActiveWaybills}
                   selectedVehicleId={selectedVehicleId}
                   onSelectVehicle={setSelectedVehicleId}
                   liveLocations={liveLocations}
@@ -1231,13 +1007,13 @@ export default function App() {
             </div>
           )}
 
-          {/* Active Tab: Telemetry & Gemini IA assistant */}
+          {/* Active Tab: Telemetry & AI assistant */}
           {activeTab === "telemetry" && (
             <div className="space-y-6 animate-[fadeIn_0.2s_ease-out]">
               <div className="bg-white border border-slate-200 rounded-xl p-4 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 w-full overflow-hidden">
                 <div className="min-w-0 flex-1">
                   <h2 className="text-base font-black text-slate-900 uppercase truncate">Метрики телеметрии и ИИ-Аудит рисков</h2>
-                  <p className="text-xs text-slate-500 mt-0.5 truncate">Исследование показателей телеметрии и аудит рисков с помощью Gemini Pro</p>
+                  <p className="text-xs text-slate-500 mt-0.5 truncate">Исследование показателей телеметрии и аудит рисков с помощью ИИ</p>
                 </div>
 
                 <div className="flex items-center gap-2 select-none w-full md:w-auto flex-shrink-0">
@@ -1260,7 +1036,7 @@ export default function App() {
               <AnalyticsPanel
                 selectedVehicleId={selectedVehicleId}
                 vehicles={vehicles}
-                cargoLoads={validActiveCargoLoads}
+                waybills={validActiveWaybills}
                 liveLocations={liveLocations}
               />
             </div>
@@ -1306,12 +1082,12 @@ export default function App() {
             </div>
           )}
           
-          {printWaybillCargo && (
+          {printWaybillTarget && (
             <PrintWaybillModal
-              cargo={printWaybillCargo}
+              cargo={printWaybillTarget}
               vehicles={vehicles}
               employees={employees}
-              onClose={() => setPrintWaybillCargo(null)}
+              onClose={() => setPrintWaybillTarget(null)}
             />
           )}
         </main>

@@ -1,11 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { Vehicle, CargoLoad, LiveLocation, TelemetryParameters } from "../types";
+import { Vehicle, Waybill, LiveLocation, TelemetryParameters } from "../types";
 import { Brain, Compass, HelpCircle, Activity, Gauge, Zap, TrendingUp, AlertTriangle, RefreshCw, Send, CheckCircle } from "lucide-react";
 
 interface AnalyticsPanelProps {
   selectedVehicleId: number | null;
   vehicles: Vehicle[];
-  cargoLoads: CargoLoad[];
+  waybills: Waybill[];
   liveLocations: Record<number, LiveLocation>;
 }
 
@@ -19,18 +19,19 @@ function sameVehicleId(left: number | string | null | undefined, right: number |
 export default function AnalyticsPanel({
   selectedVehicleId,
   vehicles,
-  cargoLoads,
+  waybills,
   liveLocations
 }: AnalyticsPanelProps) {
   const [telemetry, setTelemetry] = useState<TelemetryParameters | null>(null);
   const [historyData, setHistoryData] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
-  
+
   // AI advice state
   const [aiQuestion, setAiQuestion] = useState("");
   const [aiResponse, setAiResponse] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
 
+  const BASE_API_URL = "";
   const currentLoc = selectedVehicleId ? liveLocations[selectedVehicleId] : null;
   const telemetryParams = (telemetry?.parameters || (telemetry as any)?.decoded_parameters || {}) as Record<string, number | string>;
   const normalizedHistory = Array.isArray(historyData)
@@ -40,9 +41,9 @@ export default function AnalyticsPanel({
       : [];
 
   // Find associated cargo
-  const associatedCargo = currentLoc?.cargo_id 
-    ? cargoLoads.find((c) => c.id === currentLoc.cargo_id && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)))
-    : cargoLoads.find((c) => sameVehicleId(c.vehicle_id, selectedVehicleId) && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)));
+  const associatedCargo = currentLoc?.cargo_id
+    ? (waybills || []).find((c) => String(c.id) === currentLoc.cargo_id && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)))
+    : (waybills || []).find((c) => sameVehicleId(c.vehicle_id, selectedVehicleId) && c.status === IN_TRANSIT_STATUS && vehicles.some((v) => sameVehicleId(v.id, c.vehicle_id)));
 
   // Fetch telemetry details and tracking history when vehicle changes
   useEffect(() => {
@@ -57,10 +58,10 @@ export default function AnalyticsPanel({
       setLoading(true);
       try {
         const [paramRes, histRes] = await Promise.all([
-          fetch(`/api/monitoring/vehicles/${selectedVehicleId}/parameters`, {
+          fetch(`${BASE_API_URL}/api/monitoring/vehicles/${selectedVehicleId}/parameters`, {
             credentials: "include"
           }),
-          fetch(`/api/monitoring/vehicles/${selectedVehicleId}/history`, {
+          fetch(`${BASE_API_URL}/api/monitoring/vehicles/${selectedVehicleId}/history`, {
             credentials: "include"
           })
         ]);
@@ -68,13 +69,22 @@ export default function AnalyticsPanel({
         if (paramRes.ok) {
           const paramJson = await paramRes.json();
           setTelemetry(paramJson);
+        } else {
+          console.error("Telemetry parameters load failed", paramRes.status, await paramRes.text());
+          setTelemetry(null);
         }
+
         if (histRes.ok) {
           const histJson = await histRes.json();
           setHistoryData(histJson);
+        } else {
+          console.error("Telemetry history load failed", histRes.status, await histRes.text());
+          setHistoryData([]);
         }
       } catch (err) {
         console.error("Failed to load telemetry", err);
+        setTelemetry(null);
+        setHistoryData([]);
       } finally {
         setLoading(false);
       }
@@ -86,7 +96,7 @@ export default function AnalyticsPanel({
     return () => clearInterval(interval);
   }, [selectedVehicleId]);
 
-  // Handle Gemini AI advice requests
+  // Handle AI advice requests
   async function generateAiReport(presetQuestion?: string) {
     if (!selectedVehicleId || !associatedCargo) return;
     setAiLoading(true);
@@ -95,14 +105,14 @@ export default function AnalyticsPanel({
     const question = presetQuestion || aiQuestion || "Сделай полный аудит выполнения рейса, оцени стабильность телеметрии, экономию топлива и дай советы водителю.";
 
     try {
-      const response = await fetch("/api/ai/analyze", {
+      const response = await fetch(`${BASE_API_URL}/api/ai/analyze`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json"
         },
         credentials: "include",
         body: JSON.stringify({
-          cargoId: associatedCargo.id,
+          waybill_id: associatedCargo.id,
           question: question
         })
       });
@@ -304,7 +314,7 @@ export default function AnalyticsPanel({
             <div className="flex items-center justify-between mb-4 border-b border-slate-800 pb-3">
               <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
                 <Brain className="w-4.5 h-4.5 text-amber-500" />
-                ИИ-Ассистент Диспетчера (Gemini AI)
+                ИИ-Ассистент Диспетчера
               </h3>
               <span className="text-[10px] bg-amber-500/10 text-amber-400 border border-amber-500/20 px-1.5 py-0.5 rounded font-mono font-bold">
                 PRO ACTIVE AI
@@ -314,7 +324,7 @@ export default function AnalyticsPanel({
             {associatedCargo ? (
               <div className="space-y-4">
                 <p className="text-xs text-slate-400 leading-relaxed">
-                  ИИ проанализирует маршрут <span className="text-slate-200 font-semibold">{associatedCargo.from_city} ➔ {associatedCargo.to_city}</span>, 
+                  ИИ проанализирует маршрут <span className="text-slate-200 font-semibold">{associatedCargo.from_city} ➔ {associatedCargo.to_city}</span>,
                   текущий статус груза (<span className="text-slate-300">{associatedCargo.cargo_type}</span>) и показания датчиков ТС, выдавая отчет о возможных рисках или рекомендации по регламенту.
                 </p>
 
